@@ -295,7 +295,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | website.scraping_strategy | enum | ✅ | "firecrawl", "playwright", "http", or "none" |
 | website.selectors | object | ❌ | CSS/playwright selectors for structured scraping (null = use AI extraction) |
 | endpoints | Endpoint[] | ✅ | One entry per API surface the provider exposes (openai/anthropic/google) |
-| openclaw_provider_keys | — | — | **Removed in v1.3.** The key is now derived as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`). No per-provider configuration needed. |
+| openclaw_provider_keys | — | — | **Removed in v1.3.** The key is now derived as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`). Exception: the `cometapi` provider's openclaw key uses the `comet-` prefix to match OpenClaw's actual config convention. The internal `provider_id` stays `cometapi`. No per-provider configuration needed. |
 
 ### Endpoint Object Schema
 

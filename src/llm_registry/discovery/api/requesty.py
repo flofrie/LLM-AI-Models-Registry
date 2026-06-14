@@ -4,6 +4,7 @@ from typing import Optional
 
 import httpx
 
+from llm_registry.discovery.api._keys import openclaw_provider_key
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
@@ -43,7 +44,7 @@ class RequestyModelsClient:
         description = raw.get("description", "")
 
         api_type = self._infer_api_type(model_id, description, available_endpoint_types)
-        openclaw_key = f"{provider_id}-{api_type}" if api_type else None
+        openclaw_key = openclaw_provider_key(provider_id, api_type)
 
         pricing = self._parse_pricing(raw)
         context_window = raw.get("context_window")

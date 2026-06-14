@@ -55,7 +55,7 @@ Edit `providers.json` to add/remove/configure providers. Each entry specifies:
 
 The `api_type` field on each model entry is one of the lowercase values `openai` / `anthropic` / `google`, inferred from the model name and gated by which endpoints the provider actually exposes (a provider without a `google` entry will not produce models with `api_type="google"`).
 
-The `openclaw_provider_key` is derived uniformly as `{provider_id}-{api_type}` (e.g. `wisgate-anthropic`, `requesty-google`). No per-provider configuration.
+The `openclaw_provider_key` is derived uniformly as `{provider_id}-{api_type}` (e.g. `wisgate-anthropic`, `requesty-google`). The only exception is the `cometapi` provider, whose openclaw key uses the `comet-` prefix to match OpenClaw's actual config convention (so `cometapi-anthropic` becomes `comet-anthropic`). The internal `provider_id` stays `cometapi` everywhere else. No per-provider configuration.
 
 ## Output
 

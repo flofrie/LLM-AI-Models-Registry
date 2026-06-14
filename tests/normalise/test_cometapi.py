@@ -63,6 +63,37 @@ def test_gemini_3_flash_thousands_separated_context():
     assert e.max_output_tokens == 65_500
 
 
+def test_gemini_3_1_pro_preview_table_below_30_lines():
+    """Regression: the Gemini 3.1 Pro Preview page lists context/max in a
+    2-column spec table (header 'Input token limit (context)' / 'Output
+    token limit') that appears at line 73, beyond the 30-line inline
+    scan. Before the fix, both context_window and max_output_tokens
+    were None even though the data was on the page."""
+    md = _load("gemini-3-1-pro-preview")
+    e = parse_cometapi_detail_page(md, "gemini-3-1-pro-preview", "cometapi")
+
+    assert e is not None
+    assert e.context_window == 1_048_576
+    assert e.max_output_tokens == 65_536
+    # Inline pricing still works
+    assert e.pricing is not None
+    assert e.pricing.input_per_1m == 1.6
+    assert e.pricing.output_per_1m == 9.6
+
+
+def test_gemini_3_1_flash_lite_preview_table_with_up_to_prefix():
+    """Regression: this page has the 'Context window' table header with
+    a value 'Up to 1 million tokens (multimodal text...)' — needs the
+    'million' branch of the parser, not just the 'N tokens' branch."""
+    md = _load("gemini-3-1-flash-lite-preview")
+    e = parse_cometapi_detail_page(md, "gemini-3-1-flash-lite-preview", "cometapi")
+
+    assert e is not None
+    assert e.context_window == 1_000_000
+    # Pricing still works
+    assert e.pricing is not None
+
+
 def test_sora_2_per_second_pricing():
     """Video/image gen models quote price per second, not per 1M tokens."""
     md = _load("sora-2")
@@ -244,7 +275,8 @@ def _make_entry_openai(raw, **kwargs):
 
 
 def test_openclaw_key_uniformly_derived_for_anthropic():
-    """v1.3: openclaw_provider_key is always '{provider_id}-{api_type}' (lowercase)."""
+    """openclaw_provider_key is always '{openclaw_provider_id}-{api_type}'.
+    The only alias is cometapi → comet (OpenClaw's actual convention)."""
     raw = {"id": "claude-sonnet-4-6", "name": ""}
     e = _make_entry_openai(
         raw,
@@ -252,7 +284,7 @@ def test_openclaw_key_uniformly_derived_for_anthropic():
         available_endpoint_types={"openai", "anthropic", "google"},
     )
     assert e.api_type == "anthropic"
-    assert e.openclaw_provider_key == "cometapi-anthropic"
+    assert e.openclaw_provider_key == "comet-anthropic"
 
 
 def test_openclaw_key_derived_for_anthropic_on_openrouter():

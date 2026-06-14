@@ -4,6 +4,7 @@ from typing import Optional
 
 import httpx
 
+from llm_registry.discovery.api._keys import openclaw_provider_key
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
@@ -50,7 +51,7 @@ class OpenAIModelsClient:
         description = raw.get("description", "")
 
         api_type = self._infer_api_type(model_id, name, available_endpoint_types)
-        openclaw_key = f"{provider_id}-{api_type}" if api_type else None
+        openclaw_key = openclaw_provider_key(provider_id, api_type)
 
         # Parse pricing - handle both standard and OpenRouter format
         pricing_data = raw.get("pricing", {})

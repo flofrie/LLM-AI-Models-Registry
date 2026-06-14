@@ -112,24 +112,35 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
         if m:
             max_output_tokens = _parse_size(m.group(1).replace(",", ""), m.group(2))
 
-    # Also check full markdown for context window in tech-spec table
-    # Pattern: "| **Context window** | 200,000 tokens..." or "| **Context length** | 128,000 tokens..."
+    # Also check the full document for context window in tech-spec tables.
+    # We scan the whole document (not just the first 30 lines) because the
+    # spec table is typically at line 60+ on current CometAPI pages.
+    #
+    # Headers seen in the wild: "Context window", "Context length",
+    # "Native context length", "Context window (text)", "Context (text) window",
+    # "Context window (input)", "Context window (Microsoft Foundry)",
+    # "Input token limit (context)". We accept any column-1 header that
+    # contains the word "context" followed by something token-window-shaped.
     if context_window is None:
         full_text = "\n".join(lines)
         ctx_table = re.search(
-            r"\|\s*\*?\*?\s*Context\s+(?:window|length)\s*\*?\*?\s*\|([^|]+)\|",
-            full_text, re.IGNORECASE
+            r"\|\s*\*?\*?[^|]*Context[^|]*\*?\*?\s*\|([^|]+)\|",
+            full_text, re.IGNORECASE,
         )
         if ctx_table:
-            ctx_text = ctx_table.group(1).strip()
-            # "~200,000 tokens", "128,000 tokens", "1 million tokens (default...)"
-            m = re.search(r"~?([\d,]+)\s*token", ctx_text.replace(",", ""))
-            if m:
-                context_window = int(m.group(1))
-            else:
-                m = re.search(r"([\d.]+)\s*million", ctx_text, re.IGNORECASE)
-                if m:
-                    context_window = int(float(m.group(1)) * 1_000_000)
+            context_window = _parse_token_count(ctx_table.group(1))
+
+    # Same treatment for max output tokens. Headers seen: "Max output tokens",
+    # "Max Output Tokens", "Output token limit", "Maximum Output Tokens".
+    if max_output_tokens is None:
+        full_text = "\n".join(lines)
+        mo_table = re.search(
+            r"\|\s*\*?\*?[^|]*?(?:Max(?:imum)?\s+(?:output|completion)\s+tokens"
+            r"|Output\s+token\s+limit)\s*\*?\*?\s*\|([^|]+)\|",
+            full_text, re.IGNORECASE,
+        )
+        if mo_table:
+            max_output_tokens = _parse_token_count(mo_table.group(1))
 
     # Capabilities from modality tags (Text, Image, Audio, Video) in lines 18-30
     capabilities = Capabilities()
@@ -173,3 +184,35 @@ def _parse_size(value: str, unit: str) -> Optional[int]:
         return int(v)
     except (ValueError, TypeError):
         return None
+
+
+def _parse_token_count(cell_text: str) -> Optional[int]:
+    """Parse a token count from a spec-table cell.
+
+    Accepts forms like "1,000,000 tokens", "Up to 1M tokens", "1 million
+    tokens", "~200,000 tokens (approx.)", "65.5K", "Not clearly documented".
+    Returns None when the cell doesn't contain a numeric value.
+    """
+    text = cell_text.strip()
+    # Bare size notation: "65.5K", "30K", "2M"
+    bare = re.match(r"~?([\d,.]+)([KMB])\b", text, re.IGNORECASE)
+    if bare:
+        return _parse_size(bare.group(1).replace(",", ""), bare.group(2))
+
+    # "1,000,000 tokens" / "128,000 tokens" / "~200,000 tokens (approx.)"
+    m = re.search(r"~?([\d,]+)\s*token", text.replace(",", ""))
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+
+    # "1 million tokens" / "2.5 million tokens"
+    m = re.search(r"([\d.]+)\s*million", text, re.IGNORECASE)
+    if m:
+        try:
+            return int(float(m.group(1)) * 1_000_000)
+        except ValueError:
+            pass
+
+    return None
