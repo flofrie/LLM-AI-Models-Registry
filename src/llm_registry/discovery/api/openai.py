@@ -4,7 +4,7 @@ from typing import Optional
 
 import httpx
 
-from llm_registry.schema.model_entry import ModelEntry
+from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
 class OpenAIModelsClient:
@@ -39,47 +39,127 @@ class OpenAIModelsClient:
     ) -> ModelEntry:
         """Map API response to ModelEntry."""
         model_id = raw.get("id", "")
-        owned_by = raw.get("owned_by", "")
-        endpoint_types = raw.get("supported_endpoint_types", [])
+        name = raw.get("name", "")
+        description = raw.get("description", "")
 
-        # Determine API type from endpoint_types or owned_by
-        api_type = self._infer_api_type(owned_by, endpoint_types, api_types)
+        # Determine API type from id/name patterns
+        api_type = self._infer_api_type(model_id, name, api_types)
         openclaw_key = openclaw_keys.get(api_type) if openclaw_keys else None
+
+        # Parse pricing - handle both standard and OpenRouter format
+        pricing_data = raw.get("pricing", {})
+        pricing = self._parse_pricing(pricing_data)
+
+        # Parse context window
+        context_length = raw.get("context_length")
+
+        # Use top_provider for max completion tokens if available
+        top_provider = raw.get("top_provider", {})
+        max_output_tokens = top_provider.get("max_completion_tokens")
+
+        # Parse capabilities from architecture
+        capabilities = self._parse_capabilities(raw.get("architecture", {}))
 
         return ModelEntry(
             model_id=model_id,
             provider=provider_id,
+            display_name=name,
             api_type=api_type,
             openclaw_provider_key=openclaw_key,
+            context_window=context_length,
+            max_output_tokens=max_output_tokens,
+            pricing=pricing,
+            capabilities=capabilities,
             source={
                 "url": f"{self.base_url}{self.endpoint}",
                 "method": "api",
             },
         )
 
-    def _infer_api_type(
-        self, owned_by: str, endpoint_types: list[str], api_types: list[str]
-    ) -> Optional[str]:
-        """Infer the API type from available data."""
-        # Check endpoint_types first
-        if endpoint_types:
-            if "openai" in endpoint_types:
-                return "OpenAI"
-            if "anthropic" in endpoint_types:
-                return "Anthropic"
-            if "gemini" in endpoint_types:
-                return "Google"
+    def _parse_pricing(self, pricing_data: dict) -> Optional[Pricing]:
+        """Parse pricing from API response (handles OpenRouter format)."""
+        if not pricing_data:
+            return None
 
-        # Fall back to owned_by pattern matching
-        owned_lower = owned_by.lower()
-        if "openai" in owned_lower:
-            return "OpenAI"
-        if "anthropic" in owned_lower:
+        # OpenRouter: prices are in dollars (not per 1M), convert to per 1M
+        prompt_price = pricing_data.get("prompt")
+        completion_price = pricing_data.get("completion")
+
+        # Skip if prices are -1 (N/A)
+        if prompt_price == "-1" or completion_price == "-1":
+            return None
+
+        try:
+            # OpenRouter returns dollar amounts, convert to per 1M
+            # Round to 2 decimal places to avoid floating point issues
+            prompt = round(float(prompt_price) * 1_000_000, 2) if prompt_price else None
+            completion = round(float(completion_price) * 1_000_000, 2) if completion_price else None
+        except (TypeError, ValueError):
+            return None
+
+        pricing = Pricing(
+            input_per_1m=prompt,
+            output_per_1m=completion,
+        )
+
+        # Cache pricing (OpenRouter specific)
+        cache_read = pricing_data.get("input_cache_read")
+        cache_write = pricing_data.get("input_cache_write")
+        if cache_read and cache_read != "-1":
+            try:
+                pricing.cache_read_per_1m = round(float(cache_read) * 1_000_000, 2)
+            except (TypeError, ValueError):
+                pass
+        if cache_write and cache_write != "-1":
+            try:
+                pricing.cache_write_per_1m = round(float(cache_write) * 1_000_000, 2)
+            except (TypeError, ValueError):
+                pass
+
+        return pricing
+
+    def _parse_capabilities(self, architecture: dict) -> Optional[Capabilities]:
+        """Parse capabilities from architecture field."""
+        if not architecture:
+            return None
+
+        caps = Capabilities()
+
+        modality = architecture.get("modality", "")
+        input_modalities = architecture.get("input_modalities", [])
+        output_modalities = architecture.get("output_modalities", [])
+
+        # Text
+        if "text" in input_modalities or "text" in output_modalities:
+            caps.text = True
+            caps.streaming = True
+
+        # Vision
+        if "image" in input_modalities:
+            caps.vision = True
+
+        # Audio
+        if "audio" in input_modalities:
+            caps.audio = True
+
+        # Video
+        if "video" in input_modalities or "video" in output_modalities:
+            pass  # No video field in current schema
+
+        return caps if any([caps.text, caps.vision, caps.audio]) else None
+
+    def _infer_api_type(
+        self, model_id: str, name: str, api_types: list[str]
+    ) -> Optional[str]:
+        """Infer the API type from model id/name patterns."""
+        combined = f"{model_id} {name}".lower()
+
+        if "claude" in combined:
             return "Anthropic"
-        if "google" in owned_lower or "gemini" in owned_lower:
-            return "Google"
-        if "deepseek" in owned_lower:
+        if "gpt" in combined or "openai" in combined:
             return "OpenAI"
+        if "gemini" in combined or "google" in combined:
+            return "Google"
 
         return api_types[0] if api_types else "OpenAI"
 

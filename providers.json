@@ -23,6 +23,27 @@
         "Anthropic": "custom-api-wisgate-ai",
         "Google": "custom-api-wisgate-ai-google"
       }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "website": {
+        "models_page": "https://openrouter.ai/models",
+        "scraping_strategy": "none"
+      },
+      "api": {
+        "type": "openai",
+        "base_url": "https://openrouter.ai/api/v1",
+        "models_endpoint": "/models",
+        "auth": {
+          "method": "bearer_token",
+          "env_var": "OPENROUTER_API_KEY"
+        }
+      },
+      "api_types": ["OpenAI"],
+      "openclaw_provider_keys": {
+        "OpenAI": "openrouter"
+      }
     }
   ],
   "settings": {
