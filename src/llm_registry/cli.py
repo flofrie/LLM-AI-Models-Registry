@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from llm_registry.config.loader import load_config
-from llm_registry.discovery.api import discover_from_api
+from llm_registry.discovery.api import discover_from_api, discover_from_requesty
 from llm_registry.discovery.scraping import scrape_with_firecrawl
 from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
@@ -84,14 +84,24 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
         if prov.api:
             try:
                 console.print(f"  → Calling API: {prov.api.base_url}{prov.api.models_endpoint}")
-                api_entries = await discover_from_api(
-                    base_url=prov.api.base_url,
-                    endpoint=prov.api.models_endpoint,
-                    env_var=prov.api.auth.env_var,
-                    provider_id=prov.id,
-                    api_types=prov.api_types,
-                    openclaw_keys=prov.openclaw_provider_keys,
-                )
+                if prov.id == "requesty":
+                    api_entries = await discover_from_requesty(
+                        base_url=prov.api.base_url,
+                        endpoint=prov.api.models_endpoint,
+                        env_var=prov.api.auth.env_var,
+                        provider_id=prov.id,
+                        api_types=prov.api_types,
+                        openclaw_keys=prov.openclaw_provider_keys,
+                    )
+                else:
+                    api_entries = await discover_from_api(
+                        base_url=prov.api.base_url,
+                        endpoint=prov.api.models_endpoint,
+                        env_var=prov.api.auth.env_var,
+                        provider_id=prov.id,
+                        api_types=prov.api_types,
+                        openclaw_keys=prov.openclaw_provider_keys,
+                    )
                 console.print(f"  → API returned {len(api_entries)} models")
             except Exception as e:
                 console.print(f"  → API failed: {e}")

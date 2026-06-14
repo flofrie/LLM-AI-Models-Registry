@@ -68,6 +68,28 @@
         "Anthropic": "comet-anthropic",
         "Google": "comet-google"
       }
+    },
+    {
+      "id": "requesty",
+      "name": "Requesty",
+      "website": {
+        "models_page": "https://requesty.ai/models",
+        "sample_model_url": null,
+        "scraping_strategy": "firecrawl"
+      },
+      "api": {
+        "type": "openai",
+        "base_url": "https://router.requesty.ai/v1",
+        "models_endpoint": "/models",
+        "auth": {
+          "method": "bearer_token",
+          "env_var": "REQUESTY_API_KEY"
+        }
+      },
+      "api_types": ["OpenAI"],
+      "openclaw_provider_keys": {
+        "OpenAI": "requesty"
+      }
     }
   ],
   "settings": {
