@@ -26,7 +26,7 @@ Out of scope: Real-time model availability monitoring, performance benchmarking,
 
 The provider list must be configurable, allowing addition, removal, or modification without code changes.
 
-> **[IMPL]** Simple providers need zero code - just config. Use GenericProviderParser for providers that can be driven entirely by providers.json fields (selectors, API type).
+> **[IMPL]** Simple providers with an OpenAI-compatible `/v1/models` endpoint need zero code — just config. Custom code (an API client in `discovery/api/`, a normaliser in `normalise/`) is only needed when the shape doesn't fit the standard client or the detail pages need provider-specific parsing. See `CONTRIBUTING.md` for the decision tree.
 
 
 2. System Architecture
@@ -100,7 +100,7 @@ Output Generator — writes MODELS.json and an optional human-readable MODELS.md
 |---------|----------------|-----------|
 | Language | Python 3.12+ | Existing ecosystem (Playwright, httpx, pydantic); Flo's primary language |
 | Async runtime | asyncio + httpx [async] | I/O-bound; parallel provider fetching; cleaner than threading |
-| Headless browser | Playwright (via playwright-python) | Best JS-rendering support; async; can also use persistent browser profiles |
+| Headless browser | Playwright (via playwright-python) | **Reserved / not yet used** — Firecrawl is the only scraping path currently wired up. Playwright is listed in `pyproject.toml` for future use. |
 | Scraping fallback | Firecrawl API | Already configured (API key in TOOLS.md); handles JS rendering as a service |
 | Data validation | Pydantic v2 | Schema enforcement, type coercion, validation |
 | HTTP client | httpx | Async, HTTP/2, connection pooling |
@@ -292,8 +292,8 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | name | string | ✅ | Human-readable provider name |
 | website.models_page | string (URL) | ✅ | URL of the page listing all models |
 | website.sample_model_url | string (URL) | ❌ | URL for a specific model detail page (used to infer URL pattern) |
-| website.scraping_strategy | enum | ✅ | "firecrawl", "playwright", "http", or "none" |
-| website.selectors | object | ❌ | CSS/playwright selectors for structured scraping (null = use AI extraction) |
+| website.scraping_strategy | enum | ✅ | "firecrawl", "playwright", "http", or "none". **Only "firecrawl" and "none" are currently dispatched by the code** (see `cli.py::_enrich_cometapi` and the wisgate fallback branch). The "playwright" and "http" values are reserved for future implementation. |
+| website.selectors | object | ❌ | CSS/playwright selectors for structured scraping. **Currently a reserved field** — defined in the schema (`config/loader.py::WebsiteConfig.selectors`) but not read by any code path. Reserved for a future config-driven generic scraper. |
 | endpoints | Endpoint[] | ✅ | One entry per API surface the provider exposes (openai/anthropic/google) |
 | openclaw_provider_keys | — | — | **Removed in v1.3.** The key is now derived as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`). Exception: the `cometapi` provider's openclaw key uses the `comet-` prefix to match OpenClaw's actual config convention. The internal `provider_id` stays `cometapi`. No per-provider configuration needed. |
 
@@ -329,7 +329,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | Strategy | Description | When to Use |
 |----------|-------------|-------------|
 | firecrawl | Use Firecrawl API to scrape JS-rendered pages, returning LLM-ready markdown | Best for JS-heavy pages; already configured in this workspace |
-| playwright | Use Playwright (headless Chromium) for interactive scraping + screenshot comparison | When selectors are complex or pages require interaction |
+| playwright | Use Playwright (headless Chromium) for interactive scraping + screenshot comparison | **Reserved / not yet implemented** — Firecrawl is the only scraping path currently wired up |
 | http | Simple HTTP GET + BeautifulSoup/parsing | Lightweight pages with no JS rendering needed |
 | none | Skip website scraping entirely; rely solely on API queries | Provider has a complete /models endpoint |
 
@@ -598,7 +598,7 @@ models-registry generate-md
 
 # Show diff between current MODELS.json and what a refresh would produce
 
-models-registry diff --provider wisgate
+models-registry diff --provider wisgate   # ⚠ stub — prints "Not yet implemented"
 
 # Show changelog of historical updates
 
@@ -653,13 +653,13 @@ pydantic>=2.0
 
 httpx>=0.27
 
-playwright>=1.45      # For JS-heavy scraping
+playwright>=1.45      # For JS-heavy scraping — **listed for future use, not currently imported**
 
 python-dotenv>=1.0    # Environment variable management
 
 rich>=13.0            # Beautiful CLI output
 
-aiofiles>=23.0        # Async file I/O
+aiofiles>=23.0        # Async file I/O — **listed for future use, not currently imported** (file writes are sync via `orjson`)
 
 orjson>=3.9           # Fast JSON serialization
 ### 10.2 External Services
@@ -715,7 +715,7 @@ The following questions have been answered and are implemented in this specifica
 - Source confidence ranking: None — take data as it comes, no priority ordering
 - Change detection threshold: 10% price change triggers notification
 - Async execution: asyncio + httpx async throughout
-- State persistence: **JSON only (no SQLite yet)**. The `cache/` and `resilience/` modules are reserved for future work but currently empty. Output format and intermediate state both live in MODELS.json.
+- State persistence: **JSON only (no SQLite yet)**. Deferred modules: a future LLM-extraction cache, a circuit breaker, and a SQLite state layer are listed in `IMPLEMENTATION_PLAN.md` but not built. The currently-shipped Firecrawl cache lives at `src/llm_registry/discovery/scraping/cache.py` and the runtime ledger at `.cache/firecrawl_scrape_cache.json` (gitignored). Output format and intermediate state both live in MODELS.json.
 - Parser threshold: 90% field coverage for 90% of models gates custom code
 - Current coverage by provider (v1.3): Wisgate 99/99, OpenRouter 333/337, CometAPI 109/578 (sitemap-gated), Requesty 512/512
 
@@ -734,37 +734,44 @@ llm-models-registry/
 ├── .env
 ├── src/llm_registry/
 │   ├── __init__.py
+│   ├── __main__.py
 │   ├── cli.py
-│   ├── config/ (loader.py, models.py)
-│   ├── schema/ (model_entry.py, enums.py)
+│   ├── config/ (loader.py)             # providers.json loader + Pydantic models
+│   ├── schema/ (model_entry.py)        # ModelEntry, Pricing, Capabilities
 │   ├── discovery/
-│   │   ├── api/ (openai.py, requesty.py)  # OpenAI-compatible + Requesty clients
-│   │   ├── scraping/ (base.py, firecrawl.py, playwright.py, http.py)
-│   │   └── llm/ (extractor.py)
-│   ├── cache/ (llm_cache.py)
-│   ├── resilience/ (circuit_breaker.py)
-│   ├── parsers/ (base.py, wisgate.py, openrouter.py, cometapi.py, requesty.py)
-│   ├── normalise/ (normaliser.py, merge.py, dedup.py)
-│   └── output/ (json_writer.py, markdown_writer.py)
+│   │   ├── api/
+│   │   │   ├── openai.py              # OpenAI-compatible /v1/models client
+│   │   │   ├── requesty.py            # Custom Requesty /v1/models client
+│   │   │   └── _keys.py               # openclaw_provider_key() helper
+│   │   └── scraping/
+│   │       ├── firecrawl.py           # Firecrawl API client
+│   │       ├── http.py                # Simple HTTP + BeautifulSoup (reserved, not yet used)
+│   │       └── cache.py               # Per-URL scrape cache + retry
+│   ├── normalise/
+│   │   ├── normaliser.py              # Generic helpers (parse_price, etc.)
+│   │   └── cometapi.py                # CometAPI sitemap + detail page → ModelEntry
+│   └── output/ (writer.py)            # JSON + Markdown writers
 └── tests/
-    ├── fixtures/ (golden fixtures per provider)
-    ├── unit/
-    └── integration/
+    ├── fixtures/ (cometapi_*.md)      # golden fixtures (real scraped pages)
+    ├── discovery/scraping/ (test_cache.py)
+    └── normalise/ (test_cometapi.py)
 ```
 
-> **[IMPL]** The discovery/ layer is organised by mechanism (API type, scraping strategy). The parsers/ layer is organised by provider so provider-specific quirks are isolated.
+> **[IMPL]** The `discovery/` layer is organised by mechanism (API type, scraping strategy). The `normalise/` layer is organised by provider so provider-specific quirks are isolated. The current `cometapi.py` normaliser is the only provider-specific one — the wisgate path uses inline `normalize_wisgate_markdown(...)` called from `cli.py`.
+>
+> **Deferred directories** (planned but not built): `discovery/llm/` for the LLM extractor, `cache/` for the LLM cache, `resilience/` for the circuit breaker. See `CONTRIBUTING.md` "What NOT to do" for the list of things that should not be reintroduced.
 
-### 13.2 Per-Provider Parser Module Design
+### 13.2 Per-Provider Normaliser Module Design
 
-Each provider gets a dedicated module under parsers/ implementing a common interface. Providers without a custom class fall back to a GenericProviderParser that uses only config-driven behaviour.
+When a provider's detail pages need custom parsing beyond the inline `normalize_*_markdown(...)` pattern, it gets a dedicated module under `normalise/`. Today the only example is `normalise/cometapi.py`, which exposes `parse_cometapi_detail_page(markdown, model_id, provider_id) -> Optional[ModelEntry]` plus helpers for sitemap URL discovery and slug matching. The interface contract is documented in `CONTRIBUTING.md` §3.
 
-> **[IMPL]** A ParserRegistry maps provider_id to ParserClass. Simple providers need zero code - just config. Custom parser needed only if generic approach yields <90% field coverage for >90% of models.
+> **[IMPL]** There is no `parsers/` layer and no `GenericProviderParser` — that was an earlier aspirational design. Simple providers with an OpenAI-compatible `/v1/models` endpoint need zero code; only shape-mismatched APIs or unique page formats require new modules.
 
 ### 13.3 Golden Fixture / Test Strategy
 
-Network-dependent scraping and API calls are non-deterministic, so tests SHALL run against captured fixtures by default.
+Network-dependent scraping and API calls are non-deterministic, so tests run against captured fixtures by default.
 
-- **Fixture capture:** A --capture CLI mode saves raw responses to tests/fixtures/<provider>/
+- **Fixture capture:** Real pages are saved from `.cache/firecrawl_scrape_cache.json` (the runtime scrape ledger, gitignored) into `tests/fixtures/cometapi_*.md`. There is no `--capture` CLI mode — see `CONTRIBUTING.md` §4 for the manual recipe.
 - **Golden outputs:** expected_output.json holds normalised ModelEntry records
 - **Test layers:** Unit (no network), Parser/golden (no network), Integration/live (opt-in)
 

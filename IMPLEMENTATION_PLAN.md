@@ -169,7 +169,7 @@ models-registry cache-clear               # NOT YET IMPLEMENTED (stub; no LLM ca
 
 `tests/normalise/test_cometapi.py` covers the cometapi parser with golden fixtures. Other modules are untested.
 
-To re-capture fixtures: `python3 tmp/save_fixtures.py` (manual; no `--capture` CLI flag yet — see spec §13.3).
+To re-capture fixtures: see `CONTRIBUTING.md` §4 (no `--capture` CLI flag exists; the recipe is a one-liner that copies a page out of `.cache/firecrawl_scrape_cache.json`).
 
 ---
 
@@ -179,7 +179,7 @@ To re-capture fixtures: `python3 tmp/save_fixtures.py` (manual; no `--capture` C
 The httpx client is configured with `retry_attempts` and `retry_backoff_factor` from settings. Transient Firecrawl 502/429 errors are caught per-model and logged, so the rest of the enrichment continues.
 
 ### Circuit Breaker ⏸ Deferred
-The `resilience/` module is empty. Not yet implemented.
+Not implemented. There is no `resilience/` directory in `src/llm_registry/`; the plan in earlier spec drafts to place a circuit breaker there is **deferred**, not in progress.
 
 ---
 
@@ -189,13 +189,13 @@ The `resilience/` module is empty. Not yet implemented.
 [project.dependencies]
 pydantic = ">=2.0"
 httpx = ">=0.27"
-playwright = ">=1.45"        # listed but not used yet
+playwright = ">=1.45"        # **listed for future use, not currently imported** — no `playwright.py` module exists and no provider uses the playwright scraping strategy
 python-dotenv = ">=1.0"
 rich = ">=13.0"
 click = ">=8.1"
-aiofiles = ">=23.0"
+aiofiles = ">=23.0"        # **listed for future use, not currently imported** — file writes are sync via `orjson`
 orjson = ">=3.9"
-beautifulsoup4 = ">=4.12"    # listed but not used directly
+beautifulsoup4 = ">=4.12"    # **listed for future use, not currently imported** — the only HTML parsing is via Firecrawl markdown output
 
 [project.optional-dependencies]
 dev = [
@@ -267,7 +267,7 @@ llm-models-registry/
 | 2.4 LLM extraction | ⏸ Deferred | Directory reserved |
 | 3.1 Normaliser | ✅ Done | Wisgate + CometAPI |
 | 3.2 Output writer | ✅ Done | Atomic writes, backups |
-| 4. CLI | ✅ Mostly | `diff` and `cache-clear` are stubs |
+| 4. CLI | ✅ Mostly | `diff` and `cache-clear` are stubs (print "Not yet implemented") |
 | Tests | ✅ Partial | cometapi parser only |
 | Circuit breaker | ⏸ Deferred | `resilience/` empty |
 | State persistence | ⏸ JSON only | No SQLite yet |

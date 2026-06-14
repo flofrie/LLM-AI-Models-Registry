@@ -294,7 +294,8 @@ These are deliberately deferred or out of scope. Don't reintroduce them:
 - **No SQLite.** State persistence is JSON-only. `MODELS.json` is the
   source of truth.
 - **No circuit breaker.** Retries live in the httpx + Firecrawl-cache
-  layer. The `resilience/` module is empty.
+  layer. There is no `resilience/` module at all in the source tree
+  (no `src/llm_registry/resilience/` directory).
 - **No `openclaw_provider_keys` in providers.json.** Removed in v1.3.
   Derived per-entry via `openclaw_provider_key(provider_id, api_type)`.
 - **No multi-API `api` object.** Use the `endpoints: [...]` array.

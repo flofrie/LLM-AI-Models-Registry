@@ -50,7 +50,7 @@ Edit `providers.json` to add/remove/configure providers. Each entry specifies:
 
 - `id` / `name` — provider identifier
 - `website.models_page` — URL of the marketing page (used for enrichment)
-- `website.scraping_strategy` — `firecrawl`, `playwright`, `http`, or `none`
+- `website.scraping_strategy` — `firecrawl`, `playwright`, `http`, or `none`. **Only `firecrawl` and `none` are dispatched by the current code**; the other two are reserved for future implementation.
 - `endpoints` — list of API surfaces the provider exposes. Each entry has `type` (`"openai"` / `"anthropic"` / `"google"`), `base_url`, `auth`, and one of `models_endpoint` / `messages_endpoint` / `generate_content_endpoint`. The endpoint with `models_endpoint` set is the **discovery endpoint** (typically the `openai` one). Other endpoints are recorded for downstream SDK wiring.
 
 The `api_type` field on each model entry is one of the lowercase values `openai` / `anthropic` / `google`, inferred from the model name and gated by which endpoints the provider actually exposes (a provider without a `google` entry will not produce models with `api_type="google"`).
@@ -111,11 +111,11 @@ pip install -e '.[dev]'
 pytest tests/ -v
 ```
 
-Tests use golden fixtures saved from real CometAPI page scrapes. Re-capture with the `tmp/save_fixtures.py` script (not yet a CLI flag — see spec §13.3).
+Tests use golden fixtures saved from real CometAPI page scrapes. Re-capture workflow is in `CONTRIBUTING.md` §4 (no `--capture` CLI flag exists).
 
 ## Dependencies
 
-Declared in `pyproject.toml`. Key packages: `pydantic`, `httpx`, `click`, `rich`, `orjson`, `beautifulsoup4`, `aiofiles`.
+Declared in `pyproject.toml`. Key packages actually imported: `pydantic`, `httpx`, `click`, `rich`, `orjson`. `playwright`, `beautifulsoup4`, and `aiofiles` are listed in `pyproject.toml` for future use but currently not imported by any module.
 
 `playwright` and `firecrawl` are listed but `firecrawl` is the only one currently used.
 
