@@ -1,0 +1,38 @@
+[project]
+name = "llm-models-registry"
+version = "0.1.0"
+description = "Maintains an up-to-date database of LLMs across API providers"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "httpx>=0.27",
+    "playwright>=1.45",
+    "python-dotenv>=1.0",
+    "rich>=13.0",
+    "click>=8.1",
+    "aiofiles>=23.0",
+    "orjson>=3.9",
+    "beautifulsoup4>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+models-registry = "llm_registry.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

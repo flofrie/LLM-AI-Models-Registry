@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "providers": [
+    {
+      "id": "wisgate",
+      "name": "Wisgate",
+      "website": {
+        "models_page": "https://wisgate.ai/models",
+        "scraping_strategy": "firecrawl"
+      },
+      "api": {
+        "type": "openai",
+        "base_url": "https://api.wisgate.ai/v1",
+        "models_endpoint": "/models",
+        "auth": {
+          "method": "bearer_token",
+          "env_var": "WISGATE_API_KEY"
+        }
+      },
+      "api_types": ["OpenAI", "Anthropic", "Google"],
+      "openclaw_provider_keys": {
+        "OpenAI": "custom-api-wisgate-ai-openai",
+        "Anthropic": "custom-api-wisgate-ai",
+        "Google": "custom-api-wisgate-ai-google"
+      }
+    }
+  ],
+  "settings": {
+    "max_concurrent_requests": 5,
+    "request_timeout_seconds": 30,
+    "retry_attempts": 3,
+    "retry_backoff_factor": 2.0,
+    "llm_cache_ttl_hours": 24,
+    "backup_count": 5
+  }
+}

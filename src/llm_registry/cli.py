@@ -1,0 +1,177 @@
+"""CLI entry point for LLM Models Registry."""
+import asyncio
+from pathlib import Path
+from typing import Optional
+
+import click
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from llm_registry.config.loader import load_config
+from llm_registry.discovery.api import discover_from_api
+from llm_registry.discovery.scraping import scrape_with_firecrawl
+from llm_registry.normalise import normalize_wisgate_markdown
+from llm_registry.output import generate_markdown, read_models_json, write_models_json
+from llm_registry.schema.model_entry import ModelEntry
+
+console = Console()
+
+# Load .env file
+load_dotenv()
+
+
+@click.group()
+@click.version_option(version="0.1.0")
+def main():
+    """LLM Models Registry - maintain model databases across providers."""
+    pass
+
+
+@main.command()
+def providers():
+    """List configured providers."""
+    config = load_config()
+    console.print(f"[bold]Configured providers:[/bold] {len(config.providers)}")
+    for p in config.providers:
+        console.print(f"  - {p.id}: {p.name}")
+
+
+@main.command()
+@click.option("--provider", "providers", multiple=True, help="Specific provider(s) to update")
+@click.option("--dry-run", is_flag=True, help="Discover without writing output")
+@click.option("--force", is_flag=True, help="Force full re-scrape, ignore cache")
+@click.option("--enrich", is_flag=True, help="Scrape individual model pages for pricing details")
+def update(providers, dry_run, force, enrich):
+    """Update models from providers."""
+    asyncio.run(_update(providers, dry_run, force, enrich))
+
+
+async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool):
+    """Async implementation of update command."""
+    config = load_config()
+
+    # Filter to specific providers if requested
+    target_providers = [
+        p for p in config.providers
+        if not provider_ids or p.id in provider_ids
+    ]
+
+    if not target_providers:
+        console.print("[red]No matching providers found[/red]")
+        return
+
+    console.print(f"[bold]Updating {len(target_providers)} provider(s)[/bold]")
+
+    all_models: dict[str, ModelEntry] = {}
+
+    # Load existing models for merge
+    if not force:
+        existing = read_models_json()
+        all_models = existing
+
+    for prov in target_providers:
+        console.print(f"\n[cyan]Discovering from {prov.name}...[/cyan]")
+
+        # Step 1: Try API first - this gives us the complete model list
+        api_entries: list[ModelEntry] = []
+        if prov.api:
+            try:
+                console.print(f"  → Calling API: {prov.api.base_url}{prov.api.models_endpoint}")
+                api_entries = await discover_from_api(
+                    base_url=prov.api.base_url,
+                    endpoint=prov.api.models_endpoint,
+                    env_var=prov.api.auth.env_var,
+                    provider_id=prov.id,
+                    api_types=prov.api_types,
+                    openclaw_keys=prov.openclaw_provider_keys,
+                )
+                console.print(f"  → API returned {len(api_entries)} models")
+            except Exception as e:
+                console.print(f"  → API failed: {e}")
+
+        # Step 2: If enrich flag, scrape individual model pages for pricing
+        if enrich and prov.website.scraping_strategy != "none" and api_entries:
+            console.print(f"  → Scraping model detail pages for pricing...")
+            # Get models without pricing from API - scrape all
+            models_needing_pricing = [e for e in api_entries if not e.pricing]
+            sample = models_needing_pricing  # All models
+
+            for entry in sample:
+                try:
+                    model_url = f"{prov.website.models_page}/{entry.model_id}"
+                    console.print(f"    → {entry.model_id}")
+                    markdown = await scrape_with_firecrawl(model_url)
+
+                    # Parse pricing from detail page (single model)
+                    details = normalize_wisgate_markdown(markdown, prov.id, target_model_id=entry.model_id)
+                    if details:
+                        # Update the API entry with scraped data
+                        scraped = details[0]
+                        if scraped.pricing:
+                            entry.pricing = scraped.pricing
+                        if scraped.context_window:
+                            entry.context_window = scraped.context_window
+                        if scraped.max_output_tokens:
+                            entry.max_output_tokens = scraped.max_output_tokens
+                        if scraped.display_name:
+                            entry.display_name = scraped.display_name
+                        if scraped.capabilities:
+                            entry.capabilities = scraped.capabilities
+                except Exception as e:
+                    console.print(f"    → Failed: {e}")
+
+        # Merge into all_models
+        for entry in api_entries:
+            key = f"{prov.id}_{entry.model_id}"
+            all_models[key] = entry
+
+    console.print(f"\n[bold]Total models: {len(all_models)}[/bold]")
+
+    if dry_run:
+        console.print("[yellow]Dry run - not writing output[/yellow]")
+    else:
+        console.print("→ Writing MODELS.json...")
+        write_models_json(all_models)
+
+        console.print("→ Generating MODELS.md...")
+        generate_markdown(all_models)
+
+        console.print("[green]Done![/green]")
+
+
+@main.command()
+def validate():
+    """Validate MODELS.json against schema."""
+    try:
+        models = read_models_json()
+        console.print(f"[green]Valid: {len(models)} models[/green]")
+    except Exception as e:
+        console.print(f"[red]Validation failed: {e}[/red]")
+
+
+@main.command()
+def generate_md():
+    """Generate MODELS.md from MODELS.json."""
+    models = read_models_json()
+    generate_markdown(models)
+    console.print(f"[green]Generated MODELS.md with {len(models)} models[/green]")
+
+
+@main.command()
+@click.option("--provider", help="Show diff for specific provider")
+def diff(provider):
+    """Show changes between current and new MODELS.json."""
+    console.print(f"[yellow]diff command[/yellow] - provider: {provider}")
+    console.print("[dim]Not yet implemented[/dim]")
+
+
+@main.command(name="cache-clear")
+def cache_clear():
+    """Clear LLM extraction cache."""
+    console.print("[yellow]cache clear command[/yellow]")
+    console.print("[dim]Not yet implemented[/dim]")
+
+
+if __name__ == "__main__":
+    main()
