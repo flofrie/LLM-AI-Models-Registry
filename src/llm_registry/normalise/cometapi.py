@@ -90,15 +90,15 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
         if m:
             pricing.per_request = round(float(m.group(1)), 6)
 
-        # Context:2M or Context:200K (present on some models)
-        m = re.match(r"Context:([0-9.]+)([KMB]?)", line.strip(), re.IGNORECASE)
+        # Context:2M, Context:200K, Context:1,048,576 (present on some models)
+        m = re.match(r"Context:([\d,.]+)([KMB]?)", line.strip(), re.IGNORECASE)
         if m:
-            context_window = _parse_size(m.group(1), m.group(2))
+            context_window = _parse_size(m.group(1).replace(",", ""), m.group(2))
 
-        # Max Output:30K
-        m = re.match(r"Max Output:([0-9.]+)([KMB]?)", line.strip(), re.IGNORECASE)
+        # Max Output:30K, Max Output:65.5k
+        m = re.match(r"Max Output:([\d,.]+)([KMB]?)", line.strip(), re.IGNORECASE)
         if m:
-            max_output_tokens = _parse_size(m.group(1), m.group(2))
+            max_output_tokens = _parse_size(m.group(1).replace(",", ""), m.group(2))
 
     # Also check full markdown for context window in tech-spec table
     # Pattern: "| **Context window** | 200,000 tokens..." or "| **Context length** | 128,000 tokens..."
