@@ -1,9 +1,11 @@
 # Implementation Plan: LLM Models Registry
 
+> **Status as of v1.3 (2026-06-14):** All four target providers (Wisgate, OpenRouter, CometAPI, Requesty) are wired in. The data path is fully deterministic — LLM extraction is **deferred** (see spec §5.1, IMPL v1.3). State persistence is JSON-only (no SQLite). Tests exist for the cometapi parser; broader coverage TBD.
+
 ## Approach
 **One provider first (Wisgate)** — Incremental implementation with early validation
 
-## Phase 1: Foundation (Priority: High)
+## Phase 1: Foundation (Priority: High) ✅ Done
 
 ### 1.1 Project Scaffolding
 ```
@@ -25,54 +27,16 @@ llm-models-registry/
 - Config validation on load with clear errors
 - `.env.example` for required env vars
 
-### 1.2 Initial providers.json
-Create minimal Wisgate config (expand later):
-```json
-{
-  "version": "1.0",
-  "providers": [
-    {
-      "id": "wisgate",
-      "name": "Wisgate",
-      "website": {
-        "models_page": "https://wisgate.ai/models",
-        "scraping_strategy": "firecrawl"
-      },
-      "api": {
-        "type": "openai",
-        "base_url": "https://api.wisgate.ai/v1",
-        "models_endpoint": "/models",
-        "auth": {
-          "method": "bearer_token",
-          "env_var": "WISGATE_API_KEY"
-        }
-      },
-      "api_types": ["OpenAI", "Anthropic", "Google"],
-      "openclaw_provider_keys": {
-        "OpenAI": "custom-api-wisgate-ai-openai",
-        "Anthropic": "custom-api-wisgate-ai",
-        "Google": "custom-api-wisgate-ai-google"
-      }
-    }
-  ],
-  "settings": {
-    "max_concurrent_requests": 5,
-    "request_timeout_seconds": 30,
-    "retry_attempts": 3,
-    "retry_backoff_factor": 2.0,
-    "llm_cache_ttl_hours": 24,
-    "backup_count": 5
-  }
-}
-```
+### 1.2 Initial providers.json ✅ Done
+Four providers configured: wisgate, openrouter, cometapi, requesty. See current `providers.json` for full schema.
 
-**Deliverable:** `python -m llm_registry providers` lists configured providers
+**Deliverable:** `python -m llm_registry providers` lists configured providers ✅
 
 ---
 
-## Phase 2: Core Discovery (Wisgate)
+## Phase 2: Core Discovery (Wisgate) ✅ Done
 
-### 2.1 Schema & Data Models
+### 2.1 Schema & Data Models ✅ Done
 ```
 src/llm_registry/
 ├── schema/
@@ -91,14 +55,14 @@ src/llm_registry/
 - available, deprecated, notes
 - last_updated, source (nested: url, method, scraped_at)
 
-### 2.2 API Discovery (Priority: First)
+### 2.2 API Discovery ✅ Done
 ```
 src/llm_registry/discovery/
 ├── __init__.py
 ├── api/
 │   ├── __init__.py
-│   ├── base.py       # Abstract base + retry logic
-│   └── openai.py     # OpenAI-compatible /models endpoint
+│   ├── openai.py     # OpenAI-compatible /models endpoint
+│   └── requesty.py   # Custom Requesty client (NOT OpenAI-compatible)
 ```
 
 **Flow:**
@@ -107,65 +71,66 @@ src/llm_registry/discovery/
 3. Parse response to list of model IDs
 4. Map to ModelEntry (partial data from API)
 
-**Deliverable:** `python -m llm_registry discover --provider wisgate --dry-run` prints discovered models
+**OpenRouter-specific handling:** OpenRouter returns prices in dollars (not per 1M), so we multiply by 1M and round to 2dp. Cache pricing (`input_cache_read` / `input_cache_write`) is also extracted.
 
-### 2.3 Website Scraping (Fallback)
+**Requesty-specific handling:** Requesty's API is not OpenAI-compatible. It returns `input_price`/`output_price`/`cached_price` directly at the top level (in $/token), plus `supports_vision`/`supports_tool_calling`/etc. capability flags. A dedicated `RequestyModelsClient` is required.
+
+**Deliverable:** `python -m llm_registry update --provider wisgate` discovers 99 models ✅
+
+### 2.3 Website Scraping (Fallback) ✅ Done
 ```
 src/llm_registry/discovery/
 ├── scraping/
 │   ├── __init__.py
-│   ├── base.py
 │   ├── firecrawl.py   # Firecrawl API client
 │   └── http.py        # Simple HTTP + BeautifulSoup
 ```
 
 **Flow:**
-1. If API failed or returned incomplete data → scrape
-2. Use Firecrawl for JS-heavy pages
-3. Extract with selectors OR LLM fallback
-4. Cross-reference with API data
+1. If `--enrich` flag set, scrape model detail pages for pricing/context
+2. Per-provider logic:
+   - **Wisgate**: `https://wisgate.ai/models/{model_id}` → markdown → regex parsing
+   - **CometAPI**: fetch `sitemap-4.xml` → slug→(provider,slug) map → match API model_id → scrape detail page → regex parsing
+3. Extract with deterministic regex/table parsing
+4. Cross-reference with API data (merge, don't overwrite)
 
-### 2.4 LLM Extraction
+### 2.4 LLM Extraction ⏸ Deferred
 ```
 src/llm_registry/discovery/
 └── llm/
     ├── __init__.py
-    └── extractor.py   # Requesty client + caching
+    └── extractor.py   # (NOT YET IMPLEMENTED)
 ```
 
-**LLM Extraction Cache:**
-- SQLite table: `llm_cache(key, content_hash, result, expires_at)`
-- Key = SHA256(source_url + content_hash)[:16]
-- TTL = settings.llm_cache_ttl_hours
-- Invalidate with `--force`
+Per spec §5.1 [IMPL v1.3]: Tier 2 (LLM fallback) and Tier 3 (verification mode) are **not yet implemented**. The current data path is fully deterministic. The `discovery/llm/` package is a reserved directory stub.
 
-**Deliverable:** LLM used only when selector extraction yields <90% fields
+When implemented, the LLM client will use:
+- Provider: Requesty
+- Model: deepseek/deepseek-v4-pro
+- Cache: SHA256(content) keyed with 24h TTL
 
 ---
 
-## Phase 3: Normalization & Output
+## Phase 3: Normalization & Output ✅ Done
 
-### 3.1 Normalizer
+### 3.1 Normalizer ✅ Done
 ```
 src/llm_registry/
 ├── normalise/
 │   ├── __init__.py
-│   ├── normaliser.py  # Map provider data → ModelEntry
-│   └── merge.py       # Merge new data with existing MODELS.json
+│   ├── normaliser.py   # Wisgate markdown → ModelEntry
+│   └── cometapi.py     # CometAPI sitemap + detail page → ModelEntry
 ```
 
-**Merge logic (per spec Section 4.3):**
-- New fields: merge (add without removing)
-- Conflicting fields: overwrite with new
-- Missing models: mark `available: false`
-- New models: add with nulls for unknown fields
+Per-provider parsers handle provider-specific quirks (e.g. CometAPI's `Input:$X/M` inline format vs. Wisgate's `$X • $Y` format). The dispatch lives in `cli.py::_enrich_cometapi` and the wisgate fallback branch.
 
-### 3.2 Output Writer
+**Merge logic (per spec Section 4.3):** `read_models_json()` loads the existing file; new entries overwrite by `provider_model_id` key; new models are added with nulls for unknown fields.
+
+### 3.2 Output Writer ✅ Done
 ```
 src/llm_registry/output/
 ├── __init__.py
-├── json_writer.py    # Atomic write + backup rotation
-└── markdown_writer.py
+└── writer.py    # Atomic write + backup rotation
 ```
 
 **Atomic write:**
@@ -174,11 +139,11 @@ src/llm_registry/output/
 3. `os.replace()` to `MODELS.json`
 4. Rotate backups (keep last N)
 
-**Deliverable:** `python -m llm_registry update` produces valid MODELS.json
+**Deliverable:** `python -m llm_registry update` produces valid MODELS.json ✅
 
 ---
 
-## Phase 4: CLI Commands
+## Phase 4: CLI Commands ✅ Done (with stubs)
 
 ### Implemented Commands
 ```bash
@@ -186,6 +151,7 @@ src/llm_registry/output/
 models-registry update                    # Full refresh
 models-registry update --provider wisgate # Single provider
 models-registry update --dry-run          # No write
+models-registry update --enrich           # Also scrape detail pages
 
 # Output
 models-registry generate-md               # MODELS.md from JSON
@@ -193,55 +159,71 @@ models-registry validate                  # Schema check
 
 # Debug
 models-registry providers                 # List configured
-models-registry diff --provider wisgate   # Show changes
-models-registry cache clear               # Purge LLM cache
+models-registry diff --provider wisgate   # NOT YET IMPLEMENTED (stub)
+models-registry cache-clear               # NOT YET IMPLEMENTED (stub; no LLM cache yet)
 ```
 
 ---
 
-## Error Handling
+## Tests ✅ Partial
 
-### Circuit Breaker
-- After 3 consecutive failures → mark provider unhealthy
-- Skip for 5 minutes, then test recovery
-- Log state transitions
+`tests/normalise/test_cometapi.py` covers the cometapi parser with golden fixtures. Other modules are untested.
 
-### Retry Logic
-- Exponential backoff with jitter
-- Respect `Retry-After` headers
-- Configurable attempts + backoff factor
+To re-capture fixtures: `python3 tmp/save_fixtures.py` (manual; no `--capture` CLI flag yet — see spec §13.3).
 
 ---
 
-## Dependencies (Final)
+## Error Handling ⏸ Partial
+
+### Retry Logic ✅
+The httpx client is configured with `retry_attempts` and `retry_backoff_factor` from settings. Transient Firecrawl 502/429 errors are caught per-model and logged, so the rest of the enrichment continues.
+
+### Circuit Breaker ⏸ Deferred
+The `resilience/` module is empty. Not yet implemented.
+
+---
+
+## Dependencies (Current)
 
 ```toml
 [project.dependencies]
 pydantic = ">=2.0"
 httpx = ">=0.27"
-playwright = ">=1.45"
+playwright = ">=1.45"        # listed but not used yet
 python-dotenv = ">=1.0"
 rich = ">=13.0"
 click = ">=8.1"
 aiofiles = ">=23.0"
 orjson = ">=3.9"
-beautifulsoup4 = ">=4.12"
+beautifulsoup4 = ">=4.12"    # listed but not used directly
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
 ```
+
+`firecrawl` SDK is **not** in the dependencies — the project calls the Firecrawl HTTP API directly via `httpx`.
 
 ---
 
-## File Structure (Final)
+## File Structure (Actual)
 
 ```
 llm-models-registry/
 ├── pyproject.toml
 ├── .env.example
 ├── README.md
+├── SPEC-LLM-REG-002-v1.2.md      # frozen at v1.2
+├── SPEC-LLM-REG-002-v1.3.md      # current
+├── IMPLEMENTATION_PLAN.md
 ├── providers.json
 ├── MODELS.json (generated)
 ├── MODELS.md (generated)
 ├── src/llm_registry/
 │   ├── __init__.py
+│   ├── __main__.py                # entry point for python -m
 │   ├── cli.py
 │   ├── config/
 │   │   ├── __init__.py
@@ -249,38 +231,43 @@ llm-models-registry/
 │   │   └── models.py
 │   ├── schema/
 │   │   ├── __init__.py
-│   │   ├── model_entry.py
-│   │   └── enums.py
+│   │   └── model_entry.py
 │   ├── discovery/
 │   │   ├── __init__.py
 │   │   ├── api/
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   └── openai.py
-│   │   ├── scraping/
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   ├── firecrawl.py
-│   │   │   └── http.py
-│   │   └── llm/
+│   │   │   ├── openai.py
+│   │   │   └── requesty.py
+│   │   └── scraping/
 │   │       ├── __init__.py
-│   │       └── extractor.py
-│   ├── cache/
-│   │   ├── __init__.py
-│   │   └── llm_cache.py
-│   ├── resilience/
-│   │   ├── __init__.py
-│   │   └── circuit_breaker.py
+│   │       ├── firecrawl.py
+│   │       └── http.py
 │   ├── normalise/
 │   │   ├── __init__.py
 │   │   ├── normaliser.py
-│   │   └── merge.py
+│   │   └── cometapi.py
 │   └── output/
 │       ├── __init__.py
-│       ├── json_writer.py
-│       └── markdown_writer.py
+│       └── writer.py
 └── tests/
     ├── fixtures/
-    ├── unit/
-    └── integration/
+    │   └── cometapi_*.md          # golden fixtures
+    └── normalise/
+        └── test_cometapi.py
 ```
+
+## Status Summary
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 1. Foundation | ✅ Done | 4 providers in `providers.json` |
+| 2.1 Schema | ✅ Done | Pydantic v2 |
+| 2.2 API discovery | ✅ Done | OpenAI + Requesty clients |
+| 2.3 Website scraping | ✅ Done | Firecrawl, per-provider parsers |
+| 2.4 LLM extraction | ⏸ Deferred | Directory reserved |
+| 3.1 Normaliser | ✅ Done | Wisgate + CometAPI |
+| 3.2 Output writer | ✅ Done | Atomic writes, backups |
+| 4. CLI | ✅ Mostly | `diff` and `cache-clear` are stubs |
+| Tests | ✅ Partial | cometapi parser only |
+| Circuit breaker | ⏸ Deferred | `resilience/` empty |
+| State persistence | ⏸ JSON only | No SQLite yet |
