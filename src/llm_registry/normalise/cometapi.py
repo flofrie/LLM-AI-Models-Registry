@@ -54,8 +54,20 @@ def find_url_for_model(model_id: str, slug_map: dict[str, tuple[str, str]]) -> O
 
 
 def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -> Optional[ModelEntry]:
-    """Parse a CometAPI model detail page markdown into a ModelEntry."""
+    """Parse a CometAPI model detail page markdown into a ModelEntry.
+
+    Returns None when the page is a 404 / not-found (the URL exists in
+    the sitemap but resolves to a "Page Not Found" body). This is distinct
+    from a successful scrape of a real page that simply lacks pricing
+    fields — that returns a ModelEntry with nulls.
+    """
     lines = markdown.split("\n")
+
+    # 404 detection: some sitemap URLs resolve to a 404 page (HTTP 200
+    # but body says "Page Not Found"). Don't treat these as parseable.
+    full_text = "\n".join(lines)
+    if re.search(r"Page Not Found|404|page you're looking for doesn't exist", full_text, re.IGNORECASE):
+        return None
 
     # Extract headline model ID from # heading (line ~8)
     api_model_id = model_id

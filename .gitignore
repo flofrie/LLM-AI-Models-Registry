@@ -43,6 +43,9 @@ models_changelog.jsonl
 # Backups
 .backups/
 
+# Local cache (per-URL scrape ledger, etc.)
+.cache/
+
 # OS
 .DS_Store
 Thumbs.db

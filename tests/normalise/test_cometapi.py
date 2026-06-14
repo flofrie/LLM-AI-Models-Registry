@@ -159,6 +159,20 @@ def test_empty_markdown_returns_entry_with_none_fields():
     assert e.display_name is None
 
 
+def test_404_page_returns_none():
+    """When a sitemap URL resolves to a 404 page (HTTP 200, body says
+    'Page Not Found'), parse_cometapi_detail_page returns None so the
+    caller doesn't write a half-populated entry."""
+    body = """\
+[Kimi K2.7 Code is now on CometAPI](https://www.cometapi.com/models/moonshotai/kimi-k2-7-code/)
+![404](https://www.cometapi.com/_next/image/?url=%2Ficon.svg&w=256&q=75)
+# Page Not Found
+The page you're looking for doesn't exist or may have been moved.
+[Browse All Models](https://www.cometapi.com/models/)
+"""
+    assert parse_cometapi_detail_page(body, "claude-fable-5", "cometapi") is None
+
+
 # --- api_type inference (v1.3: lowercase, gated by available_endpoint_types) -
 
 def test_infer_api_type_claude_canonical_name():

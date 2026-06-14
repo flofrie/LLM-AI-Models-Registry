@@ -163,7 +163,15 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
 
 
 async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None:
-    """Enrich CometAPI models by scraping individual detail pages via sitemap URLs."""
+    """Enrich CometAPI models by scraping individual detail pages via sitemap URLs.
+
+    Uses a per-URL scrape cache (.cache/firecrawl_scrape_cache.json) so
+    successive --enrich runs don't re-burn Firecrawl credits on URLs that
+    succeeded recently. Transient errors (429, 5xx) are retried with
+    exponential backoff within a single run.
+    """
+    from llm_registry.discovery.scraping.cache import scrape_with_firecrawl_cached
+
     console.print("  → Fetching CometAPI sitemap...")
     try:
         sitemap_entries = await fetch_sitemap_urls()
@@ -173,10 +181,12 @@ async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None
         console.print(f"  → Sitemap fetch failed: {e}")
         return
 
-    # Build index of API entries by model_id
-    api_map = {e.model_id: e for e in api_entries}
     enriched = 0
-    not_found = 0
+    cached_hits = 0
+    fresh_scrapes = 0
+    not_found = 0  # model_id not in sitemap
+    page_missing = 0  # URL in sitemap but page is 404
+    failed = 0  # transient error / non-retryable
 
     for entry in api_entries:
         url_info = find_url_for_model(entry.model_id, slug_map)
@@ -187,8 +197,18 @@ async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None
         provider_slug, model_slug = url_info
         url = f"https://www.cometapi.com/models/{provider_slug}/{model_slug}/"
         try:
-            markdown = await scrape_with_firecrawl(url)
+            from llm_registry.discovery.scraping.cache import get_cached_markdown
+            was_cached = get_cached_markdown(url) is not None
+            markdown = await scrape_with_firecrawl_cached(url, scrape_with_firecrawl)
+            if was_cached:
+                cached_hits += 1
+            else:
+                fresh_scrapes += 1
             scraped = parse_cometapi_detail_page(markdown, entry.model_id, prov.id)
+            if scraped is None:
+                # 404 page — sitemap has the URL but the page is gone
+                page_missing += 1
+                continue
             if scraped:
                 if scraped.pricing:
                     entry.pricing = scraped.pricing
@@ -202,9 +222,14 @@ async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None
                     entry.capabilities = scraped.capabilities
                 enriched += 1
         except Exception as e:
+            failed += 1
             console.print(f"    → Failed {entry.model_id}: {e}")
 
-    console.print(f"  → Enriched {enriched} models ({not_found} had no sitemap page)")
+    console.print(
+        f"  → Enriched {enriched} models "
+        f"({cached_hits} from cache, {fresh_scrapes} fresh, {page_missing} sitemap URLs were 404, "
+        f"{failed} failed, {not_found} had no sitemap page)"
+    )
 
 
 @main.command()
