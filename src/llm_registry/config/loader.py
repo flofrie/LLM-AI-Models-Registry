@@ -15,10 +15,19 @@ class WebsiteConfig(BaseModel):
 
 
 class AuthConfig(BaseModel):
-    """API authentication configuration."""
+    """API authentication configuration.
+
+    `required` is True for providers whose discovery endpoint refuses
+    unauthenticated requests (e.g. Wisgate, CometAPI both return 401
+    without a key) and False for providers whose `/v1/models` is
+    public (e.g. OpenRouter, Requesty — both serve 200 anonymously).
+    When `required=False`, the env_var may be unset and the client
+    will send no Authorization header.
+    """
     method: str = "bearer_token"  # bearer_token, api_key_header, api_key_query
     env_var: str
     header_name: Optional[str] = None  # default: Authorization
+    required: bool = True
 
 
 class EndpointConfig(BaseModel):

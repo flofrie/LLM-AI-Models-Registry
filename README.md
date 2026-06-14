@@ -10,7 +10,10 @@ pip install -e .
 
 # Configure environment (see .env.example)
 cp .env.example .env
-# Required: WISGATE_API_KEY, OPENROUTER_API_KEY, COMET_API_KEY, REQUESTY_API_KEY, FIRECRAWL_API_KEY
+# Required: WISGATE_API_KEY, COMET_API_KEY, FIRECRAWL_API_KEY
+# Optional: OPENROUTER_API_KEY, REQUESTY_API_KEY  (both providers' /v1/models
+# endpoints are public — they return 200 with full model data anonymously;
+# the key is only needed for actual chat calls)
 
 # List providers
 python -m llm_registry providers

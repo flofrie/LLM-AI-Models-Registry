@@ -93,10 +93,22 @@ discussion before writing the code.
 - `"api_key_header"` — sends a custom header (specify `auth.header_name`)
 - `"api_key_query"` — passes the key as a query param (specify `auth.query_param`)
 
+`auth.required` is `true` by default. Set it to `false` for providers whose
+`/v1/models` endpoint serves unauthenticated requests (OpenRouter and
+Requesty both do — verify with `curl -o /dev/null -w '%{http_code}'` before
+assuming). When `required: false`, the env var may be unset; the client sends
+no `Authorization` header and the discovery still works.
+
+**Always verify by hand first** — don't just guess that the endpoint is
+public. Some providers gate `/v1/models` behind auth but serve their docs
+site anonymously, which can mislead a quick check.
+
 ### Also update `.env.example`
 
 Add the new env var (e.g. `YOURPROVIDER_API_KEY=`) so contributors know what
-to set. Real values live in `.env`, which is gitignored.
+to set. Mark it as `# required` or `# optional (discovery is public)` so
+contributors know which keys are mandatory. Real values live in `.env`,
+which is gitignored.
 
 ---
 

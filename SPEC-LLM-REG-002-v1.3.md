@@ -309,6 +309,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | auth.method | enum | ✅ | `"bearer_token"`, `"api_key_header"`, `"api_key_query"` |
 | auth.env_var | string | ✅ | Environment variable holding the credential |
 | auth.header_name | string | ❌ | Custom auth header name (default: `Authorization`) |
+| auth.required | bool | ✅ (`true`) | Whether the discovery endpoint refuses unauthenticated requests. Set to `false` for providers whose `/v1/models` is public (OpenRouter and Requesty both serve 200 anonymously). When `false`, the env var may be unset and no `Authorization` header is sent. **Always verify by hand before declaring a provider public** — don't guess. |
 | notes | string | ❌ | Free-form notes for documented quirks (e.g. `"Native x-api-key is not accepted; wire via ANTHROPIC_AUTH_TOKEN."`) |
 
 > A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is universal. The `anthropic` and `google` endpoints are only declared if the provider actually serves them — a provider without a `google` entry cannot route models to a google-style wire, so Gemini models on that provider fall back to `openai`.
@@ -664,14 +665,20 @@ aiofiles>=23.0        # Async file I/O — **listed for future use, not currentl
 orjson>=3.9           # Fast JSON serialization
 ### 10.2 External Services
 
-| Service | Purpose | Credential |
-|---------|---------|------------|
-| Firecrawl API | JS-heavy page scraping (already configured) | FIRECRAWL_API_KEY env var |
-| Wisgate API | Model listing via API | WISGATE_API_KEY env var |
-| OpenRouter API | Model listing via API | OPENROUTER_API_KEY env var |
-| Requesty API (model listing) | Model listing via API | REQUESTY_API_KEY env var |
-| Requesty API (LLM fallback) | LLM-based page parsing (deepseek-v4-pro) | REQUESTY_API_KEY env var |
-| CometAPI | Model listing via API | COMET_API_KEY env var |
+| Service | Purpose | Required for `--enrich`? | Required for plain `update`? | Credential |
+|---------|---------|--------------------------|------------------------------|------------|
+| Firecrawl API | JS-heavy page scraping | ✅ | ❌ | FIRECRAWL_API_KEY env var |
+| Wisgate API | Model listing via API | n/a | ✅ (returns 401 without a key) | WISGATE_API_KEY env var |
+| OpenRouter API | Model listing via API | n/a | ❌ (discovery endpoint is public) | OPENROUTER_API_KEY env var |
+| Requesty API (model listing) | Model listing via API | n/a | ❌ (discovery endpoint is public) | REQUESTY_API_KEY env var |
+| Requesty API (LLM fallback) | LLM-based page parsing (deepseek-v4-pro) | n/a (Tier 2 deferred) | n/a | REQUESTY_API_KEY env var |
+| CometAPI | Model listing via API | n/a | ✅ (returns 401 without a key) | COMET_API_KEY env var |
+
+> **Concretely:** a `python -m llm_registry update` run needs only
+> `WISGATE_API_KEY`, `COMET_API_KEY`, and `FIRECRAWL_API_KEY` (the last
+> only if you pass `--enrich`). `OPENROUTER_API_KEY` and `REQUESTY_API_KEY`
+> are optional — both providers serve 200 anonymously. The behaviour is
+> controlled by `auth.required` in `providers.json` (default `true`).
 
 
 ## 11. Roadmap / Phases

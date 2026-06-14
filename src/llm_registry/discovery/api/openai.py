@@ -11,18 +11,23 @@ from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 class OpenAIModelsClient:
     """Client for OpenAI-compatible /v1/models endpoint."""
 
-    def __init__(self, base_url: str, endpoint: str, api_key: str, timeout: float = 30.0):
+    def __init__(self, base_url: str, endpoint: str, api_key: str | None = None, timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
         self.endpoint = endpoint
-        self.api_key = api_key
+        self.api_key = api_key or None  # treat empty string as None
         self.timeout = timeout
 
     def _get_headers(self) -> dict:
-        """Build request headers."""
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        """Build request headers.
+
+        When `api_key` is None, no Authorization header is sent (the
+        provider's discovery endpoint must be public — see
+        `AuthConfig.required` in `config/loader.py`).
+        """
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     async def list_models(self) -> list[dict]:
         """Call /v1/models and return raw model data."""
@@ -197,11 +202,18 @@ async def discover_from_api(
     env_var: str,
     provider_id: str,
     available_endpoint_types: set[str],
+    *,
+    auth_required: bool = True,
     timeout: float = 30.0,
 ) -> list[ModelEntry]:
-    """Discover models from an OpenAI-compatible API endpoint."""
-    api_key = os.environ.get(env_var)
-    if not api_key:
+    """Discover models from an OpenAI-compatible API endpoint.
+
+    `auth_required=False` means the provider's discovery endpoint
+    serves unauthenticated requests; the env var may be unset and
+    no Authorization header will be sent.
+    """
+    api_key = os.environ.get(env_var) or None
+    if auth_required and not api_key:
         raise ValueError(f"Missing API key: {env_var}")
 
     client = OpenAIModelsClient(base_url, endpoint, api_key, timeout)

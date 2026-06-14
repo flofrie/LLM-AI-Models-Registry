@@ -92,6 +92,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                 console.print(
                     f"  → Calling API: {discovery_endpoint.base_url}{discovery_endpoint.models_endpoint}"
                 )
+                auth_kwargs = {"auth_required": discovery_endpoint.auth.required}
                 if prov.id == "requesty":
                     api_entries = await discover_from_requesty(
                         base_url=discovery_endpoint.base_url,
@@ -99,6 +100,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         env_var=discovery_endpoint.auth.env_var,
                         provider_id=prov.id,
                         available_endpoint_types=available_types,
+                        **auth_kwargs,
                     )
                 else:
                     api_entries = await discover_from_api(
@@ -107,6 +109,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         env_var=discovery_endpoint.auth.env_var,
                         provider_id=prov.id,
                         available_endpoint_types=available_types,
+                        **auth_kwargs,
                     )
                 console.print(f"  → API returned {len(api_entries)} models")
             except Exception as e:

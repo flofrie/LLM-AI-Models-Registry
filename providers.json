@@ -54,7 +54,8 @@
           "models_endpoint": "/models",
           "auth": {
             "method": "bearer_token",
-            "env_var": "OPENROUTER_API_KEY"
+            "env_var": "OPENROUTER_API_KEY",
+            "required": false
           }
         },
         {
@@ -123,7 +124,8 @@
           "models_endpoint": "/models",
           "auth": {
             "method": "bearer_token",
-            "env_var": "REQUESTY_API_KEY"
+            "env_var": "REQUESTY_API_KEY",
+            "required": false
           }
         },
         {
