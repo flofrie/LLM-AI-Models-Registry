@@ -36,6 +36,7 @@ src/llm_registry/       # Main package
 - `MODELS.json` — Generated output (canonical state)
 - `MODELS.md` — Generated human-readable output
 - `IMPLEMENTATION_PLAN.md` — Implementation roadmap
+- `CONTRIBUTING.md` — **How to add a new provider** (5-step recipe, gotchas, what not to do). Read this first if a task is "add provider X".
 
 ## Running
 

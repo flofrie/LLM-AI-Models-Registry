@@ -770,13 +770,11 @@ Network-dependent scraping and API calls are non-deterministic, so tests SHALL r
 
 ### 13.4 Development Workflow: Adding a New Provider
 
-1. Add config entry to providers.json
-2. Attempt generic path: llm-registry discover --provider <id> --dry-run
-3. Capture fixtures: --capture
-4. Add custom parser only if generic is insufficient (coverage < 90%)
-5. Create golden output (expected_output.json)
-6. Run tests: pytest tests/ -k <id>
-7. Document quirks in the parser module docstring
+The detailed 5-step recipe — providers.json templates for the three discovery
+cases, custom-client interfaces, normaliser patterns, fixture workflow, gotchas,
+and the list of what's deliberately deferred — lives in `CONTRIBUTING.md` at
+the repo root. Read it first when adding a new provider; this section is just
+a pointer.
 
 
 ---
