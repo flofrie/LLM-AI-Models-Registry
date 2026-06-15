@@ -16,6 +16,6 @@ async def scrape_model_detail(provider_id: str, model_id: str, base_url: str) ->
 
     try:
         return await scrape_with_firecrawl(url)
-    except Exception as e:
+    except Exception:
         # Fallback to simple HTTP if Firecrawl fails
         return await scrape_with_http(url)

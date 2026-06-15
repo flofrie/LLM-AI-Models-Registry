@@ -53,7 +53,6 @@ class OpenAIModelsClient:
         """
         model_id = raw.get("id", "")
         name = raw.get("name", "")
-        description = raw.get("description", "")
 
         api_type = self._infer_api_type(model_id, name, available_endpoint_types)
         openclaw_key = openclaw_provider_key(provider_id, api_type)

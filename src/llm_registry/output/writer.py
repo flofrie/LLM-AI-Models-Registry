@@ -86,9 +86,9 @@ def generate_markdown(models: dict[str, ModelEntry], output_path: Optional[Path]
 
     lines = [
         "# MODELS.md — LLM Models Registry",
-        f"",
+        "",
         f"*Last updated: {get_timestamp()}*",
-        f"",
+        "",
     ]
 
     for provider, entries in sorted(by_provider.items()):

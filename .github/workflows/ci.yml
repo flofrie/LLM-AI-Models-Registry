@@ -35,10 +35,6 @@ jobs:
   lint:
     name: ruff
     runs-on: ubuntu-latest
-    # Non-blocking: surfaces style issues without blocking merges. Flip
-    # `continue-on-error: false` to make it required once you've
-    # triaged the existing noise.
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4

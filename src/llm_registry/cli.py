@@ -1,12 +1,9 @@
 """CLI entry point for LLM Models Registry."""
 import asyncio
-from pathlib import Path
-from typing import Optional
 
 import click
 from dotenv import load_dotenv
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from llm_registry.config.loader import load_config
 from llm_registry.discovery.api import discover_from_api, discover_from_requesty
@@ -117,7 +114,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
 
         # Step 2: If enrich flag, scrape individual model pages for pricing
         if enrich and prov.website.scraping_strategy != "none" and api_entries:
-            console.print(f"  → Scraping model detail pages for pricing...")
+            console.print("  → Scraping model detail pages for pricing...")
 
             if prov.id == "cometapi":
                 await _enrich_cometapi(prov, api_entries, console)
