@@ -785,16 +785,6 @@ a pointer.
 
 ## Appendix A: Provider Website Analysis
 
-## A.4 CometAPI (https://www.cometapi.com/models/)
-
-Type: Static model listing page
-
-Content: Model name, provider (Anthropic/OpenAI/Google), context window, input/output pricing
-
-API endpoint: https://api.cometapi.com/v1/models (OpenAI-compatible, requires key)
-
-Note: Comprehensive model catalogue; API returns pricing and context length data
-
 ## A.1 Wisgate (https://wisgate.ai/pricing)
 
 Type: JS-heavy single-page pricing table
@@ -826,6 +816,17 @@ Content: Model names, pricing tiers
 API endpoint: https://router.requesty.ai/v1/models (custom JSON format — NOT OpenAI-compatible; prices in $/token at top level, plus capability flags)
 
 Note: v1.3 — uses a dedicated `RequestyModelsClient` (not the OpenAI-compatible path). 512 models exposed, 506 with pricing.
+
+## A.4 CometAPI (https://www.cometapi.com/models/)
+
+Type: Static model listing page
+
+Content: Model name, provider (Anthropic/OpenAI/Google), context window, input/output pricing
+
+API endpoint: https://api.cometapi.com/v1/models (OpenAI-compatible, requires key)
+
+Note: Comprehensive model catalogue; API returns pricing and context length data
+
 
 
 ## Appendix B: Example Model Entry (Target Format)
