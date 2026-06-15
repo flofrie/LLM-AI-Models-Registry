@@ -1,14 +1,11 @@
 """Normalizer for mapping raw data to ModelEntry."""
 import re
-from datetime import datetime
 from typing import Optional
 
 from llm_registry.schema.model_entry import (
     Capabilities,
     ModelEntry,
     Pricing,
-    RateLimits,
-    Source,
 )
 
 

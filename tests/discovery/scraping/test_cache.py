@@ -4,9 +4,7 @@ Tests run against an in-memory monkeypatched cache path so they don't
 touch the real on-disk cache.
 """
 import asyncio
-import json
 import time
-from pathlib import Path
 
 import httpx
 import pytest
@@ -14,7 +12,6 @@ import pytest
 import llm_registry.discovery.scraping.cache as cache_mod
 from llm_registry.discovery.scraping.cache import (
     scrape_with_firecrawl_cached,
-    is_cached_error_fresh,
     get_cached_markdown,
 )
 

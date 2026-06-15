@@ -1,5 +1,4 @@
 """HTTP scraping client (simple GET + parsing)."""
-from typing import Optional
 
 import httpx
 

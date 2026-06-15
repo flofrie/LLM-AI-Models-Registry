@@ -164,7 +164,7 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
         pricing=pricing if has_pricing else None,
         capabilities=capabilities if any([capabilities.text, capabilities.vision, capabilities.audio]) else None,
         source={
-            "url": f"https://www.cometapi.com/models/",
+            "url": "https://www.cometapi.com/models/",
             "method": "scrape",
         },
     )
