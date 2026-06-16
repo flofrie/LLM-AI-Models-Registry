@@ -8,7 +8,7 @@ from rich.console import Console
 from llm_registry.config.loader import load_config
 from llm_registry.discovery.api import discover_from_api, discover_from_requesty
 from llm_registry.discovery.scraping import scrape_with_firecrawl
-from llm_registry.merge import merge_model_entries
+from llm_registry.merge import mark_missing_provider_models_unavailable, merge_model_entries
 from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
@@ -16,7 +16,7 @@ from llm_registry.normalise.cometapi import (
     find_url_for_model,
     parse_cometapi_detail_page,
 )
-from llm_registry.output import generate_markdown, read_models_json, write_models_json
+from llm_registry.output import generate_markdown, get_timestamp, read_models_json, write_models_json
 from llm_registry.schema.model_entry import ModelEntry
 
 console = Console()
@@ -85,6 +85,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
         available_types = {e.type for e in prov.endpoints}
 
         api_entries: list[ModelEntry] = []
+        discovery_succeeded = False
         if discovery_endpoint:
             try:
                 console.print(
@@ -110,6 +111,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         **auth_kwargs,
                     )
                 console.print(f"  → API returned {len(api_entries)} models")
+                discovery_succeeded = True
             except Exception as e:
                 console.print(f"  → API failed: {e}")
 
@@ -144,11 +146,21 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                     except Exception as e:
                         console.print(f"    → Failed: {e}")
 
-        # Merge into all_models - use api_type from endpoint_types for cometapi
+        # Merge fresh API entries into all_models, preserving existing enrichment.
         for entry in api_entries:
             key = f"{prov.id}_{entry.model_id}"
             existing = all_models.get(key)
             all_models[key] = merge_model_entries(existing, entry) if existing else entry
+
+        if discovery_succeeded:
+            unavailable = mark_missing_provider_models_unavailable(
+                all_models,
+                prov.id,
+                api_entries,
+                get_timestamp(),
+            )
+            if unavailable:
+                console.print(f"  → Marked {unavailable} missing models unavailable")
 
     console.print(f"\n[bold]Total models: {len(all_models)}[/bold]")
 

@@ -1,4 +1,4 @@
-from llm_registry.merge import merge_model_entries
+from llm_registry.merge import mark_missing_provider_models_unavailable, merge_model_entries
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing, Source
 
 
@@ -77,10 +77,6 @@ def test_merge_model_entries_ignores_all_null_nested_model():
 
 
 def test_merge_model_entries_does_not_clear_defaulted_booleans():
-    # Regression: stripped API entries like ModelEntry(model_id="m", provider="p")
-    # carry Pydantic defaults (available=True, deprecated=False). The merge must
-    # not treat those defaults as fresh provider data, or an existing manual
-    # state of deprecated=True / available=False would be silently cleared.
     existing = ModelEntry(
         model_id="m",
         provider="p",
@@ -96,8 +92,6 @@ def test_merge_model_entries_does_not_clear_defaulted_booleans():
 
 
 def test_merge_model_entries_overwrites_explicit_booleans():
-    # Counterpart to the regression above: when the API client does set the
-    # field explicitly, the explicit value wins — same as for any other field.
     existing = ModelEntry(
         model_id="m",
         provider="p",
@@ -110,3 +104,53 @@ def test_merge_model_entries_overwrites_explicit_booleans():
 
     assert merged.deprecated is False
     assert merged.available is True
+
+
+def test_mark_missing_provider_models_unavailable():
+    models = {
+        "provider_returned": ModelEntry(
+            model_id="returned",
+            provider="provider",
+        ),
+        "provider_missing": ModelEntry(
+            model_id="missing",
+            provider="provider",
+            notes="kept note",
+        ),
+        "provider_already_unavailable": ModelEntry(
+            model_id="already-unavailable",
+            provider="provider",
+            available=False,
+            notes="old note",
+        ),
+        "other_missing": ModelEntry(
+            model_id="missing",
+            provider="other",
+        ),
+    }
+    original_missing = models["provider_missing"]
+    fresh_entries = [
+        ModelEntry(
+            model_id="returned",
+            provider="provider",
+        )
+    ]
+
+    changed = mark_missing_provider_models_unavailable(
+        models,
+        "provider",
+        fresh_entries,
+        "2026-06-16T12:00:00Z",
+    )
+
+    assert changed == 1
+    assert models["provider_returned"].available is True
+    assert models["provider_missing"].available is False
+    assert models["provider_missing"].notes == (
+        "kept note\nNo longer listed by provider as of 2026-06-16T12:00:00Z"
+    )
+    assert models["provider_missing"] is not original_missing
+    assert original_missing.available is True
+    assert models["provider_already_unavailable"].available is False
+    assert models["provider_already_unavailable"].notes == "old note"
+    assert models["other_missing"].available is True
