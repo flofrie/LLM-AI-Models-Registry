@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """API discovery for Requesty's /v1/models endpoint."""
 import os
 from typing import Optional

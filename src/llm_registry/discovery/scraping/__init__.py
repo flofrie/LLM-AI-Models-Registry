@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Scraping module."""
 from llm_registry.discovery.scraping.firecrawl import FirecrawlClient, scrape_with_firecrawl
 from llm_registry.discovery.scraping.http import HttpClient, scrape_with_http

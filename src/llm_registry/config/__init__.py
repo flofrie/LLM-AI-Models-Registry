@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Configuration module."""
 from llm_registry.config.loader import (
     AuthConfig,

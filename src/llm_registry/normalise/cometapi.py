@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """CometAPI-specific normalizer."""
 import re
 from typing import Optional

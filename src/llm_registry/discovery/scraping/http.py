@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """HTTP scraping client (simple GET + parsing)."""
 
 import httpx

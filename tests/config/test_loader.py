@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import pytest
 
 from llm_registry.config.loader import WebsiteConfig

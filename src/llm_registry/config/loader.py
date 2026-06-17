@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Configuration loader and models."""
 from pathlib import Path
 from string import Formatter

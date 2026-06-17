@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Output writer for JSON and Markdown."""
 import os
 import shutil

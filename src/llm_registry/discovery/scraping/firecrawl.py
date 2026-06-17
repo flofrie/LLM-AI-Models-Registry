@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Firecrawl scraping client."""
 import os
 from typing import Optional

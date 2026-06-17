@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """openclaw_provider_key derivation.
 
 Lives in its own module to avoid circular imports between the clients and

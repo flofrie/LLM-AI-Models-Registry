@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for the per-URL scrape cache + retry wrapper.
 
 Tests run against an in-memory monkeypatched cache path so they don't

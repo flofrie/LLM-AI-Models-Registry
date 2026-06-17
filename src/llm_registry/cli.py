@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """CLI entry point for LLM Models Registry."""
 import asyncio
 

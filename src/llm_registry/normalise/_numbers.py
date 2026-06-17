@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared numeric parsers for normalizers."""
 
 import re

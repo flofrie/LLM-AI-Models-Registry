@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Enrichment parser dispatch registry.
 
 Maps enrichment strategy names to their parser functions.
