@@ -124,6 +124,51 @@ def test_claude_opus_4_8_capabilities_detected():
     assert e.context_window == 1_000_000
 
 
+# --- model_id and display_name policy ---------------------------------------
+
+def test_parser_does_not_rewrite_model_id_from_slug_h1():
+    """Regression for #27: a slug-like H1 (e.g. "# claude-sonnet-4-6") must
+    not overwrite the API-provided model_id. The H1 carries no information
+    beyond what the API gave us, so display_name is suppressed and
+    model_id is preserved verbatim.
+
+    Before the fix, the parser did `api_model_id = display_name` when the
+    H1 looked slug-like, contradicting its own "keep original model_id"
+    comment and risking merge-key churn if the H1 slug diverged from the
+    API id (dot/dash drift, suffix changes, etc.).
+    """
+    md = "# claude-sonnet-4-6\n\nInput:$2.4/M\nOutput:$12/M\n"
+    e = parse_cometapi_detail_page(md, "claude-sonnet-4-6", "cometapi")
+
+    assert e.model_id == "claude-sonnet-4-6"
+    assert e.display_name is None
+
+
+def test_parser_preserves_model_id_when_h1_slug_differs_from_api_id():
+    """Even when the scraped H1 slug diverges from the API-provided id
+    (here: dot vs dash), model_id stays as the API id. display_name is
+    still suppressed because the H1 is a slug we already have.
+    """
+    md = "# claude-sonnet-4-6\n\nInput:$2.4/M\nOutput:$12/M\n"
+    e = parse_cometapi_detail_page(md, "claude-sonnet-4.6", "cometapi")
+
+    assert e.model_id == "claude-sonnet-4.6"  # API id preserved
+    assert e.display_name is None  # slug H1 adds no info
+
+
+def test_parser_uses_human_readable_h1_as_display_name():
+    """A human-readable H1 (caps, spaces) populates display_name without
+    touching model_id. This is the happy path the parser was designed
+    for; the test pins it so future changes to the slug branch can't
+    regress it.
+    """
+    md = "# Claude Sonnet 4.6\n\nInput:$2.4/M\nOutput:$12/M\n"
+    e = parse_cometapi_detail_page(md, "claude-sonnet-4-6", "cometapi")
+
+    assert e.model_id == "claude-sonnet-4-6"
+    assert e.display_name == "Claude Sonnet 4.6"
+
+
 # --- find_url_for_model ------------------------------------------------------
 
 def test_find_url_exact_match():
