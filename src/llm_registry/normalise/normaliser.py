@@ -201,27 +201,3 @@ def _parse_model_details(markdown: str, provider_id: str, model_id: str, display
             "method": "scrape",
         },
     )
-
-
-def merge_entries(
-    existing: list[ModelEntry],
-    new: list[ModelEntry],
-) -> list[ModelEntry]:
-    """Merge new entries with existing, preferring new values."""
-    # Index existing by model_id
-    existing_map = {e.model_id: e for e in existing}
-
-    for new_entry in new:
-        if new_entry.model_id in existing_map:
-            # Merge: update fields that have values in new_entry
-            existing = existing_map[new_entry.model_id]
-
-            # Update fields if new has non-None values
-            for field in ["display_name", "context_window", "max_output_tokens", "pricing", "api_type"]:
-                new_val = getattr(new_entry, field)
-                if new_val is not None:
-                    setattr(existing, field, new_val)
-        else:
-            existing_map[new_entry.model_id] = new_entry
-
-    return list(existing_map.values())
