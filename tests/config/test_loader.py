@@ -36,3 +36,43 @@ def test_website_config_accepts_legacy_sample_url_template():
     assert website.model_detail_url("anthropic/claude-3.5-sonnet") == (
         "https://openrouter.ai/anthropic/claude-3.5-sonnet"
     )
+
+
+def test_website_config_rejects_unknown_placeholder_in_explicit_template():
+    with pytest.raises(ValueError, match="\\{version\\}"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            model_url_template="https://example.com/models/{model_id}/{version}",
+        )
+
+
+def test_website_config_rejects_uppercase_placeholder_alias():
+    with pytest.raises(ValueError, match="\\{Model_Id\\}"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            model_url_template="https://example.com/models/{Model_Id}",
+        )
+
+
+def test_website_config_requires_model_id_in_explicit_template():
+    with pytest.raises(ValueError, match="must include \\{model_id\\}"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            model_url_template="https://example.com/models/static",
+        )
+
+
+def test_website_config_rejects_unknown_placeholder_in_legacy_sample_url_template():
+    with pytest.raises(ValueError, match="\\{provider_slug\\}"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            sample_model_url="https://example.com/models/{provider_slug}/{model_id}",
+        )
+
+
+def test_website_config_rejects_sample_url_placeholder_without_model_id():
+    with pytest.raises(ValueError, match="\\{version\\}"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            sample_model_url="https://example.com/models/{version}",
+        )

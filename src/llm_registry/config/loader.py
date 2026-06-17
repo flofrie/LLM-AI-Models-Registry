@@ -1,18 +1,40 @@
 """Configuration loader and models."""
 from pathlib import Path
+from string import Formatter
 from typing import Optional
 
 import orjson
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+
+SUPPORTED_MODEL_URL_TEMPLATE_FIELDS = frozenset({"model_id"})
 
 
 class WebsiteConfig(BaseModel):
-    """Website scraping configuration for a provider."""
+    """Website scraping configuration for a provider.
+
+    `model_url_template` and template-like `sample_model_url` values
+    support exactly one placeholder: `{model_id}`.
+    """
     models_page: str
     sample_model_url: Optional[str] = None
     model_url_template: Optional[str] = None
     scraping_strategy: str = "none"  # firecrawl, playwright, http, none
     selectors: Optional[dict] = None
+
+    @field_validator("sample_model_url", "model_url_template")
+    @classmethod
+    def validate_model_url_template(
+        cls,
+        value: Optional[str],
+        info: ValidationInfo,
+    ) -> Optional[str]:
+        """Validate model detail URL templates before enrichment runs."""
+        if value is None:
+            return value
+
+        _validate_model_url_template(value, field_name=info.field_name)
+        return value
 
     def has_model_detail_url_strategy(self) -> bool:
         """Return whether per-model detail URLs can be built safely."""
@@ -30,6 +52,58 @@ class WebsiteConfig(BaseModel):
 
 def _is_model_url_template(value: Optional[str]) -> bool:
     return bool(value and "{model_id}" in value)
+
+
+def _validate_model_url_template(value: str, *, field_name: str) -> None:
+    placeholders = _format_placeholders(value, field_name=field_name)
+    supported = _format_supported_placeholders()
+
+    if not placeholders:
+        if field_name == "model_url_template":
+            raise ValueError(
+                f"{field_name} must include {{model_id}}; supported placeholders: {supported}"
+            )
+        return
+
+    unknown = sorted(placeholders - SUPPORTED_MODEL_URL_TEMPLATE_FIELDS)
+    if unknown:
+        names = ", ".join(f"{{{name}}}" for name in unknown)
+        raise ValueError(
+            f"{field_name} contains unsupported placeholder(s): {names}; "
+            f"supported placeholders: {supported}"
+        )
+
+    if "model_id" not in placeholders:
+        raise ValueError(
+            f"{field_name} must include {{model_id}}; supported placeholders: {supported}"
+        )
+
+
+def _format_placeholders(value: str, *, field_name: str) -> set[str]:
+    placeholders = set()
+    try:
+        parts = Formatter().parse(value)
+        for _, placeholder, format_spec, conversion in parts:
+            if placeholder is None:
+                continue
+            if not placeholder:
+                raise ValueError(
+                    f"{field_name} contains an anonymous placeholder; use {{model_id}}"
+                )
+            if format_spec or conversion:
+                raise ValueError(
+                    f"{field_name} contains unsupported formatting for {{{placeholder}}}; "
+                    "use {model_id}"
+                )
+            placeholders.add(placeholder)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} is not a valid model URL template: {exc}") from exc
+
+    return placeholders
+
+
+def _format_supported_placeholders() -> str:
+    return ", ".join(f"{{{name}}}" for name in sorted(SUPPORTED_MODEL_URL_TEMPLATE_FIELDS))
 
 
 class AuthConfig(BaseModel):
