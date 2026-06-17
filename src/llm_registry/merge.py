@@ -30,7 +30,7 @@ def _merge_model(existing: T, new: T) -> T:
         if isinstance(new_value, BaseModel):
             if not _has_present_value(new_value):
                 continue
-            if isinstance(existing_value, new_value.__class__):
+            if isinstance(existing_value, type(new_value)):
                 setattr(merged, field_name, _merge_model(existing_value, new_value))
             else:
                 setattr(merged, field_name, new_value.model_copy(deep=True))
