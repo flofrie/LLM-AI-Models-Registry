@@ -8,6 +8,10 @@ stripped (e.g., missing pricing/context_window because the API doesn't
 expose them), the dispatch must call merge_model_entries() and
 preserve the existing enrichment rather than overwriting with None.
 """
+import asyncio
+from types import SimpleNamespace
+
+import llm_registry.cli as cli
 from llm_registry.merge import merge_model_entries
 from llm_registry.schema.model_entry import (
     Capabilities,
@@ -132,3 +136,40 @@ def test_cli_dispatch_does_not_mutate_existing_entry():
     # Merged entry has the preserved values
     assert all_models[key].context_window == 100_000
     assert all_models[key].pricing.input_per_1m == 1.0
+
+
+def test_update_does_not_soft_delete_when_discovery_fails(monkeypatch):
+    existing = {
+        "provider_missing": ModelEntry(
+            model_id="missing",
+            provider="provider",
+            available=True,
+        )
+    }
+    written = {}
+    provider = SimpleNamespace(
+        id="provider",
+        name="Provider",
+        website=SimpleNamespace(scraping_strategy="none"),
+        endpoints=[
+            SimpleNamespace(
+                type="openai",
+                models_endpoint="/models",
+                base_url="https://example.test/v1",
+                auth=SimpleNamespace(required=False, env_var="PROVIDER_API_KEY"),
+            )
+        ],
+    )
+
+    async def fail_discovery(**kwargs):
+        raise RuntimeError("api down")
+
+    monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
+    monkeypatch.setattr(cli, "read_models_json", lambda: existing)
+    monkeypatch.setattr(cli, "discover_from_api", fail_discovery)
+    monkeypatch.setattr(cli, "write_models_json", lambda models: written.update(models))
+    monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
+
+    asyncio.run(cli._update(("provider",), dry_run=False, force=False, enrich=False))
+
+    assert written["provider_missing"].available is True

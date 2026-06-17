@@ -23,6 +23,38 @@ def merge_model_entries(existing: ModelEntry, new: ModelEntry) -> ModelEntry:
     return _merge_model(existing, new)
 
 
+def mark_missing_provider_models_unavailable(
+    models: dict[str, ModelEntry],
+    provider_id: str,
+    fresh_entries: list[ModelEntry],
+    timestamp: str,
+) -> int:
+    """Soft-delete provider models absent from a successful discovery run.
+
+    Replaces changed entries in the dict instead of mutating them in place,
+    matching the copy-on-merge contract used by ``merge_model_entries``.
+    """
+    fresh_model_ids = {entry.model_id for entry in fresh_entries}
+    note = f"No longer listed by provider as of {timestamp}"
+    changed = 0
+
+    for key, entry in models.items():
+        if entry.provider != provider_id:
+            continue
+        if entry.model_id in fresh_model_ids:
+            continue
+        if entry.available is False:
+            continue
+
+        updated = entry.model_copy(deep=True)
+        updated.available = False
+        updated.notes = f"{updated.notes.rstrip()}\n{note}" if updated.notes else note
+        models[key] = updated
+        changed += 1
+
+    return changed
+
+
 def _merge_model(existing: T, new: T) -> T:
     merged = existing.model_copy(deep=True)
     explicitly_set = new.model_fields_set
