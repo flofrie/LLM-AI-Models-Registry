@@ -70,16 +70,19 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
     if re.search(r"Page Not Found|404|page you're looking for doesn't exist", full_text, re.IGNORECASE):
         return None
 
-    # Extract headline model ID from # heading (line ~8)
-    api_model_id = model_id
+    # Extract a human-readable display name from the page H1 (line ~8).
+    # We deliberately do NOT rewrite model_id from the H1 — identity is
+    # set at API discovery and used as the merge key, so rewriting it
+    # from scraped page text would risk merge-key churn. A slug-like H1
+    # (e.g. "# claude-sonnet-4-6") is suppressed below because it adds no
+    # human-readable information beyond the model_id we already have.
     display_name = None
     for line in lines[:15]:
         h1 = re.match(r"^#\s+(.+)$", line.strip())
         if h1:
-            display_name = h1.group(1).strip()
-            # If display name looks like a slug, keep original model_id
-            if re.match(r"^[a-z0-9][a-z0-9.\-]+$", display_name):
-                api_model_id = display_name
+            candidate = h1.group(1).strip()
+            if not _looks_like_slug(candidate):
+                display_name = candidate
             break
 
     # Extract pricing and specs from lines after the heading (first 30 lines)
@@ -157,9 +160,9 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
     has_pricing = pricing.input_per_1m is not None or pricing.per_request is not None
 
     return ModelEntry(
-        model_id=api_model_id,
+        model_id=model_id,
         provider=provider_id,
-        display_name=display_name if display_name and display_name != api_model_id else None,
+        display_name=display_name,
         context_window=context_window,
         max_output_tokens=max_output_tokens,
         pricing=pricing if has_pricing else None,
@@ -169,4 +172,16 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
             "method": "scrape",
         },
     )
+
+
+def _looks_like_slug(value: str) -> bool:
+    """Return True if `value` looks like a URL/model slug rather than a
+    human-readable label. Slug detection is the same regex the parser
+    used historically to decide whether to treat the H1 as an identity
+    candidate; now it's used only to decide whether the H1 is worth
+    keeping as a display name. Slugs are ASCII-lowercase with optional
+    dots/dashes; anything with capitals, spaces, or non-ASCII characters
+    is treated as human-readable.
+    """
+    return bool(re.match(r"^[a-z0-9][a-z0-9.\-]+$", value))
 
