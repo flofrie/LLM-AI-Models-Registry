@@ -523,7 +523,7 @@ Generate a candidate file
 
 Diff against current MODELS.json
 
-Report the diff in console output
+Report the diff in console output. **[IMPL v1.3]** A persistent changelog file is deferred; the diff is only printed to stdout. See §9.3 for the deferred-modules list.
 
 Optionally notify (console output, OpenClaw message, or file) about significant changes (price changes > threshold, new models, deprecated models)
 
@@ -542,6 +542,10 @@ models-registry update --provider wisgate --provider openrouter
 # Force full re-scrape (ignore cache)
 
 models-registry update --force
+
+# Update only one provider; other providers' data is preserved as-is (incremental update)
+
+models-registry update --provider requesty
 
 # Dry run: scrape but don't write output
 
