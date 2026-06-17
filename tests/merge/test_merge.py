@@ -74,3 +74,39 @@ def test_merge_model_entries_ignores_all_null_nested_model():
 
     assert merged.capabilities.text is True
     assert merged.capabilities.streaming is True
+
+
+def test_merge_model_entries_does_not_clear_defaulted_booleans():
+    # Regression: stripped API entries like ModelEntry(model_id="m", provider="p")
+    # carry Pydantic defaults (available=True, deprecated=False). The merge must
+    # not treat those defaults as fresh provider data, or an existing manual
+    # state of deprecated=True / available=False would be silently cleared.
+    existing = ModelEntry(
+        model_id="m",
+        provider="p",
+        deprecated=True,
+        available=False,
+    )
+    new = ModelEntry(model_id="m", provider="p")
+
+    merged = merge_model_entries(existing, new)
+
+    assert merged.deprecated is True
+    assert merged.available is False
+
+
+def test_merge_model_entries_overwrites_explicit_booleans():
+    # Counterpart to the regression above: when the API client does set the
+    # field explicitly, the explicit value wins — same as for any other field.
+    existing = ModelEntry(
+        model_id="m",
+        provider="p",
+        deprecated=True,
+        available=False,
+    )
+    new = ModelEntry(model_id="m", provider="p", deprecated=False, available=True)
+
+    merged = merge_model_entries(existing, new)
+
+    assert merged.deprecated is False
+    assert merged.available is True
