@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from llm_registry.discovery.api.inference import infer_api_type
 
 

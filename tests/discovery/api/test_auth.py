@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for optional auth in API clients.
 
 OpenRouter and Requesty both serve their /v1/models endpoint

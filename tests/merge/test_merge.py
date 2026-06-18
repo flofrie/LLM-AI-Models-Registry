@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from llm_registry.merge import mark_missing_provider_models_unavailable, merge_model_entries
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing, Source
 

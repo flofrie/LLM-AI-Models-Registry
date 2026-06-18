@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Per-URL scrape cache + retry for Firecrawl.
 
 Why this exists: marketing pages change rarely (often days/weeks between

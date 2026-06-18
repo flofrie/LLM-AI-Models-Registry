@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Output module."""
 from llm_registry.output.writer import (
     generate_markdown,

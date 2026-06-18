@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared API type inference for provider model discovery."""
 
 ANTHROPIC_KEYWORDS = ("claude", "sonnet", "opus", "haiku", "fable", "mythos")

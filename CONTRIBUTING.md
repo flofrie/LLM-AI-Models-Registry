@@ -10,6 +10,16 @@ and try `python -m llm_registry update --provider <id>`. If the discovery result
 looks right, you're mostly done. Add a normaliser only if enrichment is missing
 fields you need.**
 
+## Contributor license terms
+
+By submitting a contribution to this project, you agree that your contribution
+is licensed under the same license as the project: the MIT License in `LICENSE`.
+
+Do not submit code, fixtures, generated data, documentation, or other material
+that you do not have the right to contribute. If a contribution contains
+third-party material, identify its source and applicable license in the pull
+request so it can be reviewed before merge.
+
 ## The five steps
 
 1. Add the provider to `providers.json` (and `.env.example`).

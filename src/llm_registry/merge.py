@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Merge helpers for model registry updates."""
 
 from typing import TypeVar

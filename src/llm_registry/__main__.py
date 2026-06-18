@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Entry point for python -m llm_registry."""
 from llm_registry.cli import main
 

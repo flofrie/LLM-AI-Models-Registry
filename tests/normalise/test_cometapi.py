@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for cometapi normaliser.
 
 Uses golden fixtures saved from live scrapes — the parser is exercised

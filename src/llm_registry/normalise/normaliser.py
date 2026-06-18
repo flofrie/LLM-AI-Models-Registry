@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Normalizer for mapping raw data to ModelEntry."""
 import re
 from typing import Optional

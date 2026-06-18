@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Schema for model entries."""
 from typing import Optional
 

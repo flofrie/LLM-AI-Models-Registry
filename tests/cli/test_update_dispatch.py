@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Integration test for the per-entry dispatch in cli.py::_update.
 
 The full _update() function pulls config, reads existing MODELS.json, calls

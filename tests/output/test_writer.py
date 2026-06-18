@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import json
 
 from llm_registry.output.writer import generate_markdown, write_models_json

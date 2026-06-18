@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from llm_registry.normalise._numbers import parse_size, parse_token_count
 
 
