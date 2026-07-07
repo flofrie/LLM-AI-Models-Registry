@@ -110,6 +110,7 @@ The pipeline is **fully deterministic** — no LLM in the loop. Field extraction
 | `generate-md` | Regenerate MODELS.md from MODELS.json |
 | `validate` | Validate MODELS.json against schema |
 | `providers` | List configured providers |
+| `llm-registry-check-diff` | Check two MODELS.json snapshots for suspicious differences |
 | `diff` | Show changes vs current (not yet implemented) |
 | `cache-clear` | Clear LLM extraction cache (stub — no LLM cache yet) |
 

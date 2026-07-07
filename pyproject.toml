@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 models-registry = "llm_registry.cli:main"
+llm-registry-check-diff = "llm_registry.diff_cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]

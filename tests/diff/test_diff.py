@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: MIT
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from llm_registry.diff import DiffWarning, diff_models
+from llm_registry.diff_cli import main as diff_cli_main
 from llm_registry.output import read_models_json
 from llm_registry.schema.model_entry import ModelEntry, Pricing
 
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "diff"
 SCRIPT = Path(__file__).parents[2] / "scripts" / "check_diff.py"
+PYPROJECT = Path(__file__).parents[2] / "pyproject.toml"
 
 
 def _load(name: str) -> list[ModelEntry]:
@@ -121,6 +124,23 @@ def test_check_diff_script_strict_exits_nonzero_with_warnings():
 
     assert result.returncode == 1
     assert "model diff warning" in result.stdout
+
+
+def test_diff_cli_main_defaults_to_zero_exit_with_warnings(capsys):
+    result = diff_cli_main([
+        str(FIXTURES / "before.json"),
+        str(FIXTURES / "after.json"),
+    ])
+
+    assert result == 0
+    assert "model diff warning" in capsys.readouterr().out
+
+
+def test_pyproject_exposes_check_diff_console_script():
+    pyproject = tomllib.loads(PYPROJECT.read_text())
+    assert pyproject["project"]["scripts"]["llm-registry-check-diff"] == (
+        "llm_registry.diff_cli:main"
+    )
 
 
 def _warnings_by_category(warnings: list[DiffWarning]) -> dict[str, list[DiffWarning]]:

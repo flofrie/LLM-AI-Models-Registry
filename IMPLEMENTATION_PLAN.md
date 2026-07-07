@@ -161,6 +161,7 @@ models-registry validate                  # Schema check
 models-registry providers                 # List configured
 models-registry retry-failed              # Retry unresolved failed enrichment records
 models-registry retry-failed --try-harder # 2x Firecrawl timeout + proxy:auto
+llm-registry-check-diff OLD.json NEW.json # Check two model snapshots
 models-registry diff --provider wisgate   # NOT YET IMPLEMENTED (stub)
 models-registry cache-clear               # NOT YET IMPLEMENTED (stub; no LLM cache yet)
 ```
