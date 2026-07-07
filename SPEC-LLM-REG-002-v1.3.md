@@ -594,6 +594,10 @@ models-registry providers
 
 models-registry generate-md
 
+# Check two MODELS.json snapshots for suspicious output changes
+
+llm-registry-check-diff .backups/MODELS.backup.<timestamp>.json MODELS.json
+
 # Show diff between current MODELS.json and what a refresh would produce
 
 models-registry diff --provider wisgate   # ⚠ stub — prints "Not yet implemented"

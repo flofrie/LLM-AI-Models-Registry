@@ -113,6 +113,10 @@ The pipeline is **fully deterministic** — no LLM in the loop. Field extraction
 | `diff` | Show changes vs current (not yet implemented) |
 | `cache-clear` | Clear LLM extraction cache (stub — no LLM cache yet) |
 
+`llm-registry-check-diff <previous.json> <current.json>` is a separately
+installed console script for checking two `MODELS.json` snapshots. Run it
+directly after installation, not as a `python -m llm_registry` subcommand.
+
 ## Tests
 
 ```bash

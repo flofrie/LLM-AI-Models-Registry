@@ -286,8 +286,11 @@ After a real update, compare the previous and current `MODELS.json` snapshots
 with the standalone checker:
 
 ```bash
-python scripts/check_diff.py .backups/MODELS.backup.<timestamp>.json MODELS.json
+llm-registry-check-diff .backups/MODELS.backup.<timestamp>.json MODELS.json
 ```
+
+`python scripts/check_diff.py ...` remains supported as a repository-local
+compatibility wrapper around the same implementation.
 
 The checker warns about large provider-level count drops, field-coverage drops
 for fields such as context and pricing, and model IDs that disappeared or were
