@@ -21,7 +21,20 @@ def merge_model_entries(existing: ModelEntry, new: ModelEntry) -> ModelEntry:
     Pydantic models are merged field-by-field so partial API data cannot erase
     enriched pricing or capability subfields.
     """
-    return _merge_model(existing, new)
+    merged = _merge_model(existing, new)
+
+    # An ID-only API refresh should not relabel preserved website enrichment
+    # as API-sourced. The scraped source remains the best description of the
+    # pricing/context fields that survived the merge.
+    if (
+        existing.source is not None
+        and existing.source.method == "scrape"
+        and new.source is not None
+        and new.source.method == "api"
+    ):
+        merged.source = existing.source.model_copy(deep=True)
+
+    return merged
 
 
 def mark_missing_provider_models_unavailable(
@@ -49,6 +62,7 @@ def mark_missing_provider_models_unavailable(
 
         updated = entry.model_copy(deep=True)
         updated.available = False
+        updated.last_updated = timestamp
         updated.notes = f"{updated.notes.rstrip()}\n{note}" if updated.notes else note
         models[key] = updated
         changed += 1

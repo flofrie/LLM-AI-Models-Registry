@@ -76,7 +76,7 @@ class OpenAIModelsClient:
         max_output_tokens = top_provider.get("max_completion_tokens")
 
         # Parse capabilities from architecture
-        capabilities = self._parse_capabilities(raw.get("architecture", {}))
+        capabilities = self._parse_capabilities(raw)
 
         return ModelEntry(
             model_id=model_id,
@@ -92,6 +92,7 @@ class OpenAIModelsClient:
                 "url": f"{self.base_url}{self.endpoint}",
                 "method": "api",
             },
+            available=True,
         )
 
     def _parse_pricing(self, pricing_data: dict) -> Optional[Pricing]:
@@ -136,9 +137,10 @@ class OpenAIModelsClient:
 
         return pricing
 
-    def _parse_capabilities(self, architecture: dict) -> Optional[Capabilities]:
-        """Parse capabilities from architecture field."""
-        if not architecture:
+    def _parse_capabilities(self, raw: dict) -> Optional[Capabilities]:
+        """Parse modalities and OpenRouter's supported-parameter metadata."""
+        architecture = raw.get("architecture", {})
+        if not architecture and not raw.get("supported_parameters") and not raw.get("reasoning"):
             return None
 
         caps = Capabilities()
@@ -163,7 +165,19 @@ class OpenAIModelsClient:
         if "video" in input_modalities or "video" in output_modalities:
             pass
 
-        return caps if any([caps.text, caps.vision, caps.audio]) else None
+        supported_parameters = set(raw.get("supported_parameters") or [])
+        if "tools" in supported_parameters or "tool_choice" in supported_parameters:
+            caps.tool_use = True
+        if {"structured_outputs", "response_format"} & supported_parameters:
+            caps.structured_output = True
+        if raw.get("reasoning") or {
+            "reasoning",
+            "include_reasoning",
+            "reasoning_effort",
+        } & supported_parameters:
+            caps.thinking = True
+
+        return caps if any(value is True for value in caps.model_dump().values()) else None
 
     def _infer_api_type(
         self,

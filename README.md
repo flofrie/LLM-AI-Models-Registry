@@ -40,16 +40,20 @@ python -m llm_registry validate
 
 ## Supported Providers
 
-| Provider | Models | Pricing source | Context source |
-|----------|--------|----------------|----------------|
-| Wisgate | 99 | scraped detail pages | API + scraped pages |
-| OpenRouter | 337 | API (`pricing` block) | API (`context_length`) |
-| CometAPI | 578 | scraped detail pages (109 enriched) | scraped detail pages (44 enriched) |
-| Requesty | 512 | API (`input_price`/`output_price` in $/token) | API (`context_window`) |
+| Provider | Discovery | Pricing source | Context source |
+|----------|-----------|----------------|----------------|
+| Wisgate | API model IDs | scraped detail pages | scraped detail pages |
+| OpenRouter | public API | API (`pricing` block) | API (`context_length`) |
+| CometAPI | API model IDs | scraped detail pages | scraped detail pages |
+| Requesty | public API | API (`input_price`/`output_price` in $/token) | API (`context_window`) |
 
-Total: ~1,526 models in `MODELS.json`.
+Provider counts change frequently; run `python -m llm_registry update --dry-run`
+for the current totals.
 
-CometAPI's enrichment is gated by the marketing sitemap (~240 of 578 API models have a corresponding detail page). The remaining models are present in the registry from the API but lack pricing/context until/unless marketing pages are added.
+CometAPI enrichment follows the sitemap index advertised at `sitemap.xml`,
+then parses the English entries in `sitemap-models.xml`. Only API models with
+a matching marketing detail page can be enriched; all other API model IDs are
+still retained with the fields available from discovery.
 
 ## Configuration
 
@@ -94,7 +98,10 @@ providers.json  →  API discovery (httpx)  →  per-provider normaliser
                   MODELS.json + MODELS.md
 ```
 
-The pipeline is **fully deterministic** — no LLM in the loop. Field extraction uses regex/table parsing against the markdown produced by Firecrawl. The `discovery/llm/` and `cache/` modules are reserved directory stubs for a future LLM-fallback layer (see spec §5.1).
+The pipeline is **fully deterministic** — no LLM in the loop. Field extraction
+uses sitemap XML parsing plus section/table parsing against the markdown
+produced by Firecrawl. The `discovery/llm/` module is reserved for a future
+LLM-fallback layer (see spec §5.1).
 
 ## CLI Commands
 

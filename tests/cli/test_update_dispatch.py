@@ -147,6 +147,71 @@ def test_cli_dispatch_does_not_mutate_existing_entry():
     assert all_models[key].pricing.input_per_1m == 1.0
 
 
+def test_merge_fresh_entry_reactivates_model_and_refreshes_timestamp():
+    existing = ModelEntry(
+        model_id="model",
+        provider="provider",
+        available=False,
+        notes=(
+            "manual note\n"
+            "No longer listed by provider as of 2026-06-01T00:00:00Z"
+        ),
+        last_updated="2026-06-01T00:00:00Z",
+    )
+    fresh = ModelEntry(
+        model_id="model",
+        provider="provider",
+        available=True,
+    )
+
+    merged = cli._merge_fresh_entry(existing, fresh, "2026-08-29T12:00:00Z")
+
+    assert merged.available is True
+    assert merged.notes == "manual note"
+    assert merged.last_updated == "2026-08-29T12:00:00Z"
+
+
+def test_merge_fresh_entry_keeps_timestamp_when_payload_is_unchanged():
+    existing = ModelEntry(
+        model_id="model",
+        provider="provider",
+        available=True,
+        context_window=100_000,
+        last_updated="2026-06-01T00:00:00Z",
+        source=Source(url="https://api.example.test/models", method="api"),
+    )
+    fresh = ModelEntry(
+        model_id="model",
+        provider="provider",
+        available=True,
+        context_window=100_000,
+        source=Source(url="https://api.example.test/models", method="api"),
+    )
+
+    merged = cli._merge_fresh_entry(existing, fresh, "2026-08-29T12:00:00Z")
+
+    assert merged.last_updated == "2026-06-01T00:00:00Z"
+
+
+def test_scraped_enrichment_records_detail_page_provenance():
+    api_entry = ModelEntry(
+        model_id="model",
+        provider="provider",
+        source=Source(url="https://api.example.test/models", method="api"),
+    )
+    scraped = ModelEntry(
+        model_id="model",
+        provider="provider",
+        pricing=Pricing(input_per_1m=1.0),
+        source=Source(url="https://example.test/models/model", method="scrape"),
+    )
+
+    assert cli._apply_scraped_enrichment(api_entry, scraped) is True
+    assert api_entry.source.url == "https://example.test/models/model"
+    assert api_entry.source.method == "scrape"
+    assert api_entry.source.scraped_at is not None
+
+
 def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkeypatch):
     """A provider with model_url_template but enrichment_strategy=None
     should skip enrichment rather than trying to call a parser."""
@@ -391,7 +456,11 @@ def test_enrich_cometapi_passes_firecrawl_timeout_through_cache(monkeypatch):
     monkeypatch.setattr(cache_mod, "get_cached_markdown", lambda url: None)
     monkeypatch.setattr(cache_mod, "scrape_with_firecrawl_cached", fake_cached_scrape)
     monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
-    monkeypatch.setattr(cli, "parse_cometapi_detail_page", lambda markdown, model_id, provider_id: [])
+    monkeypatch.setattr(
+        cli,
+        "parse_cometapi_detail_page",
+        lambda markdown, model_id, provider_id, source_url=None: [],
+    )
 
     asyncio.run(
         cli._enrich_cometapi(
@@ -444,7 +513,7 @@ def test_enrich_cometapi_prints_per_model_outcomes_and_summary(monkeypatch):
     async def scrape(url, **kwargs):
         return "# fresh"
 
-    def parse(markdown, model_id, provider_id):
+    def parse(markdown, model_id, provider_id, source_url=None):
         if model_id in {"cached-enriched", "fresh-enriched"}:
             return ModelEntry(
                 model_id=model_id,

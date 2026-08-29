@@ -11,6 +11,8 @@ from llm_registry.discovery.api.openai import OpenAIModelsClient
 from llm_registry.discovery.api.requesty import RequestyModelsClient
 from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
+    _parse_model_sitemap,
+    _parse_sitemap_index,
     build_slug_to_url_map,
     find_url_for_model,
     parse_cometapi_detail_page,
@@ -125,6 +127,63 @@ def test_claude_opus_4_8_capabilities_detected():
     assert e.context_window == 1_000_000
 
 
+def test_current_cometapi_layout_uses_target_sections_not_navigation():
+    md = """\
+[Audio docs](https://example.test/audio)
+# Claude Opus 4.8 API
+
+Unit price
+$4.00 / 1M input tokens
+
+## Pricing
+
+Use the estimate below.
+
+## Pricing for Claude Opus 4.8
+
+| Model | Comet Price | Official Price |
+| --- | --- | --- |
+| claude-opus-4-8 | Input:$4/M<br>Output:$20/M | Input:$5/M<br>Output:$25/M |
+
+## Capabilities
+
+Supported capabilities
+
+text-to-text
+image-to-text
+
+Inputs
+
+text
+
+Outputs
+
+text
+
+## Technical specifications
+
+| Context window | 1 million tokens |
+| Max output tokens | 128K |
+"""
+
+    entry = parse_cometapi_detail_page(
+        md,
+        "claude-opus-4-8",
+        "cometapi",
+        source_url="https://www.cometapi.com/models/anthropic/claude-opus-4-8/",
+    )
+
+    assert entry.display_name == "Claude Opus 4.8"
+    assert entry.pricing.input_per_1m == 4.0
+    assert entry.pricing.output_per_1m == 20.0
+    assert entry.context_window == 1_000_000
+    assert entry.max_output_tokens == 128_000
+    assert entry.capabilities.text is True
+    assert entry.capabilities.vision is True
+    assert entry.capabilities.audio is None
+    assert entry.source.url.endswith("/claude-opus-4-8/")
+
+
 # --- model_id and display_name policy ---------------------------------------
 
 def test_parser_does_not_rewrite_model_id_from_slug_h1():
@@ -197,6 +256,14 @@ def test_find_url_dots_to_dashes():
     assert find_url_for_model("gpt-4.1", slug_map) == ("openai", "gpt-4-1")
 
 
+def test_find_url_normalizes_case_and_underscores():
+    slug_map = build_slug_to_url_map([("deepseek", "deepseek-v3-2-exp-thinking")])
+    assert find_url_for_model("DeepSeek-V3.2_Exp-thinking", slug_map) == (
+        "deepseek",
+        "deepseek-v3-2-exp-thinking",
+    )
+
+
 def test_find_url_no_match_returns_none():
     slug_map = {"claude-sonnet-4-6": ("anthropic", "claude-sonnet-4-6")}
     assert find_url_for_model("abab5.5-chat", slug_map) is None
@@ -224,6 +291,30 @@ def test_build_slug_map_last_wins_on_duplicates():
         ("provider-b", "shared-slug"),
     ]
     assert build_slug_to_url_map(entries) == {"shared-slug": ("provider-b", "shared-slug")}
+
+
+def test_current_sitemap_index_and_model_urlset_are_parsed_as_xml():
+    index = """\
+<?xml version="1.0"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://www.cometapi.com/sitemap-static.xml</loc></sitemap>
+  <sitemap><loc>https://www.cometapi.com/sitemap-models.xml</loc></sitemap>
+</sitemapindex>
+"""
+    models = """\
+<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.cometapi.com/models/anthropic/claude-opus-5/</loc></url>
+  <url><loc>https://www.cometapi.com/de/models/anthropic/claude-opus-5/</loc></url>
+  <url><loc>https://www.cometapi.com/models/openai/gpt-5-6/</loc></url>
+</urlset>
+"""
+
+    assert _parse_sitemap_index(index)[-1].endswith("sitemap-models.xml")
+    assert _parse_model_sitemap(models) == [
+        ("anthropic", "claude-opus-5"),
+        ("openai", "gpt-5-6"),
+    ]
 
 
 # --- empty markdown edge case -----------------------------------------------
@@ -453,6 +544,63 @@ def test_requesty_sparse_text_model_gets_text_capability():
     assert e.capabilities is not None
     assert e.capabilities.text is True
     assert e.capabilities.streaming is True
+
+
+def test_requesty_maps_current_canonical_name_capabilities_and_free_pricing():
+    raw = {
+        "id": "nvidia/example",
+        "model_canonical_name": "nvidia-example",
+        "api": "chat",
+        "input_price": 0,
+        "output_price": 0,
+        "cached_price": 0,
+        "supports_vision": True,
+        "supports_tool_calling": True,
+        "supports_output_json_schema": True,
+        "supports_reasoning": True,
+        "description": "",
+    }
+    entry = RequestyModelsClient("http://x", "/m", "k").map_to_model_entry(
+        raw,
+        provider_id="requesty",
+        available_endpoint_types={"openai", "anthropic"},
+    )
+
+    assert entry.display_name == "nvidia-example"
+    assert entry.pricing.input_per_1m == 0
+    assert entry.pricing.output_per_1m == 0
+    assert entry.capabilities.vision is True
+    assert entry.capabilities.tool_use is True
+    assert entry.capabilities.structured_output is True
+    assert entry.capabilities.thinking is True
+    assert entry.available is True
+    assert "available" in entry.model_fields_set
+
+
+def test_openrouter_maps_supported_parameter_capabilities():
+    raw = {
+        "id": "vendor/reasoning-model",
+        "name": "Reasoning Model",
+        "architecture": {
+            "input_modalities": ["text", "image"],
+            "output_modalities": ["text"],
+        },
+        "supported_parameters": ["tools", "structured_outputs", "reasoning"],
+        "reasoning": {"supported": True},
+    }
+    entry = OpenAIModelsClient("http://x", "/m", "k").map_to_model_entry(
+        raw,
+        provider_id="openrouter",
+        available_endpoint_types={"openai", "anthropic"},
+    )
+
+    assert entry.capabilities.text is True
+    assert entry.capabilities.vision is True
+    assert entry.capabilities.tool_use is True
+    assert entry.capabilities.structured_output is True
+    assert entry.capabilities.thinking is True
+    assert entry.available is True
+    assert "available" in entry.model_fields_set
 
 
 def test_wisgate_parser_filters_all_unsupported_modalities_to_none():
