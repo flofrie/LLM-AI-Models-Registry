@@ -67,7 +67,7 @@ class RequestyModelsClient:
         return ModelEntry(
             model_id=model_id,
             provider=provider_id,
-            display_name=None,  # Description is too long to use as a short name
+            display_name=raw.get("model_canonical_name") or raw.get("name") or None,
             api_type=api_type,
             openclaw_provider_key=openclaw_key,
             context_window=context_window,
@@ -78,6 +78,7 @@ class RequestyModelsClient:
                 "url": f"{self.base_url}{self.endpoint}",
                 "method": "api",
             },
+            available=True,
         )
 
     def _parse_pricing(self, raw: dict) -> Optional[Pricing]:
@@ -86,18 +87,17 @@ class RequestyModelsClient:
         cached_price = raw.get("cached_price")
         caching_price = raw.get("caching_price")  # cache write
 
-        # Skip if all zero
-        if (input_price is None or input_price == 0) and \
-           (output_price is None or output_price == 0) and \
-           (cached_price is None or cached_price == 0):
+        # All-null means unknown. Explicit zeroes are meaningful: Requesty
+        # uses them for free endpoints and they must not become "unknown".
+        if all(value is None for value in (input_price, output_price, cached_price, caching_price)):
             return None
 
         # Prices are $/token; convert to $/1M
         try:
-            inp = round(float(input_price) * 1_000_000, 4) if input_price else None
-            out = round(float(output_price) * 1_000_000, 4) if output_price else None
-            cache_read = round(float(cached_price) * 1_000_000, 4) if cached_price else None
-            cache_write = round(float(caching_price) * 1_000_000, 4) if caching_price else None
+            inp = round(float(input_price) * 1_000_000, 4) if input_price is not None else None
+            out = round(float(output_price) * 1_000_000, 4) if output_price is not None else None
+            cache_read = round(float(cached_price) * 1_000_000, 4) if cached_price is not None else None
+            cache_write = round(float(caching_price) * 1_000_000, 4) if caching_price is not None else None
         except (TypeError, ValueError):
             return None
 
@@ -124,17 +124,25 @@ class RequestyModelsClient:
         if raw.get("supports_tool_calling"):
             caps.tool_use = True
 
+        if raw.get("supports_output_json_object") or raw.get("supports_output_json_schema"):
+            caps.structured_output = True
+
+        if raw.get("supports_reasoning"):
+            caps.thinking = True
+
         # Audio is mentioned in description for some models
         desc = (raw.get("description") or "").lower()
         if "audio" in desc:
             caps.audio = True
 
-        if not any([caps.text, caps.vision, caps.audio, caps.tool_use]):
+        if not any(
+            [caps.text, caps.vision, caps.audio, caps.tool_use, caps.structured_output, caps.thinking]
+        ):
             if not _looks_non_text_model(model_id, desc):
                 caps.text = True
                 caps.streaming = True
 
-        return caps if any([caps.text, caps.vision, caps.audio, caps.tool_use]) else None
+        return caps if any(value is True for value in caps.model_dump().values()) else None
 
     def _infer_api_type(
         self,

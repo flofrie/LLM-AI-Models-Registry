@@ -197,7 +197,8 @@ shows:
 
 The matching URL pattern lives in `cli.py::_enrich_yourprovider` and is wired
 into the `--enrich` branch. If your provider exposes a sitemap (CometAPI does
-via `sitemap-4.xml`), start there — see `_enrich_cometapi` for the pattern.
+via the advertised `sitemap.xml` index), start there — see
+`_enrich_cometapi` and `fetch_sitemap_urls` for the pattern.
 
 When scraping, use `scrape_with_firecrawl_cached` (not bare
 `scrape_with_firecrawl`) so the per-URL 24h success / 5min error TTL cache

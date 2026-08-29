@@ -90,7 +90,7 @@ src/llm_registry/discovery/
 1. If `--enrich` flag set, scrape model detail pages for pricing/context
 2. Per-provider logic:
    - **Wisgate**: `https://wisgate.ai/models/{model_id}` → markdown → regex parsing
-   - **CometAPI**: fetch `sitemap-4.xml` → slug→(provider,slug) map → match API model_id → scrape detail page → regex parsing
+   - **CometAPI**: follow `sitemap.xml` to `sitemap-models.xml` → parse English model URLs → build normalized slug map → match API model_id → scrape detail page → section/table parsing
 3. Extract with deterministic regex/table parsing
 4. Cross-reference with API data (merge, don't overwrite)
 

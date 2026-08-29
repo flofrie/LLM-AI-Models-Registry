@@ -67,6 +67,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
     """Async implementation of update command."""
     config = load_config()
     firecrawl_timeout_seconds = config.settings.firecrawl_timeout_seconds
+    update_timestamp = get_timestamp()
 
     # Filter to specific providers if requested
     target_providers = [
@@ -197,14 +198,14 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
         for entry in api_entries:
             key = f"{prov.id}_{entry.model_id}"
             existing = all_models.get(key)
-            all_models[key] = merge_model_entries(existing, entry) if existing else entry
+            all_models[key] = _merge_fresh_entry(existing, entry, update_timestamp)
 
         if discovery_succeeded:
             unavailable = mark_missing_provider_models_unavailable(
                 all_models,
                 prov.id,
                 api_entries,
-                get_timestamp(),
+                update_timestamp,
             )
             if unavailable:
                 console.print(f"  → Marked {unavailable} missing models unavailable")
@@ -313,6 +314,7 @@ async def _retry_failed(
             entry = models.get(key) or ModelEntry(model_id=model_id, provider=provider_id)
             if _apply_scraped_enrichment(entry, scraped):
                 succeeded += 1
+                entry.last_updated = get_timestamp()
                 models[key] = entry
                 if not dry_run:
                     clear_failure(provider_id, model_id)
@@ -427,7 +429,12 @@ async def _enrich_cometapi(
                 fresh_scrapes += 1
                 source_label = "scraped"
             phase = "parse"
-            scraped = parse_cometapi_detail_page(markdown, entry.model_id, prov.id)
+            scraped = parse_cometapi_detail_page(
+                markdown,
+                entry.model_id,
+                prov.id,
+                source_url=url,
+            )
             if scraped is None:
                 # 404 page — sitemap has the URL but the page is gone
                 page_missing += 1
@@ -496,7 +503,45 @@ def _apply_scraped_enrichment(entry: ModelEntry, scraped: ModelEntry | None) -> 
     if scraped.capabilities:
         entry.capabilities = scraped.capabilities
         enriched = True
+    if enriched and scraped.source:
+        entry.source = scraped.source.model_copy(deep=True)
+        entry.source.scraped_at = get_timestamp()
     return enriched
+
+
+def _merge_fresh_entry(
+    existing: ModelEntry | None,
+    fresh: ModelEntry,
+    timestamp: str,
+) -> ModelEntry:
+    """Merge one discovery result and timestamp only substantive changes."""
+    if existing is None:
+        fresh.last_updated = timestamp
+        return fresh
+
+    merged = merge_model_entries(existing, fresh)
+    if existing.available is False and merged.available is True:
+        merged.notes = _remove_unavailable_note(merged.notes)
+
+    if _entry_payload(existing) != _entry_payload(merged):
+        merged.last_updated = timestamp
+    return merged
+
+
+def _entry_payload(entry: ModelEntry) -> dict:
+    return entry.model_dump(exclude={"last_updated"})
+
+
+def _remove_unavailable_note(notes: str | None) -> str | None:
+    if not notes:
+        return notes
+    kept = [
+        line
+        for line in notes.splitlines()
+        if not line.startswith("No longer listed by provider as of ")
+    ]
+    value = "\n".join(kept).strip()
+    return value or None
 
 
 def _enrichment_parser_for_retry(provider):
@@ -507,6 +552,7 @@ def _enrichment_parser_for_retry(provider):
             markdown,
             model_id,
             provider_id,
+            source_url=detail_url,
         )
 
     parser_fn = ENRICHMENT_PARSERS.get(provider.website.enrichment_strategy)

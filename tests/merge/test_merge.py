@@ -30,8 +30,8 @@ def test_merge_model_entries_preserves_existing_when_new_fields_are_none():
     assert merged.pricing.input_per_1m == 2.0
     assert merged.pricing.output_per_1m == 10.0
     assert merged.capabilities.text is True
-    assert merged.source.url == "https://api.example.test/models"
-    assert merged.source.method == "api"
+    assert merged.source.url == "https://example.test/detail"
+    assert merged.source.method == "scrape"
 
 
 def test_merge_model_entries_merges_nested_models_field_by_field():
@@ -147,6 +147,7 @@ def test_mark_missing_provider_models_unavailable():
     assert changed == 1
     assert models["provider_returned"].available is True
     assert models["provider_missing"].available is False
+    assert models["provider_missing"].last_updated == "2026-06-16T12:00:00Z"
     assert models["provider_missing"].notes == (
         "kept note\nNo longer listed by provider as of 2026-06-16T12:00:00Z"
     )
